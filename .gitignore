@@ -31,10 +31,16 @@ db.sqlite3
 .DS_Store
 Thumbs.db
 
-# Test & debug output
-*.txt
-!API_DOCUMENTATION.md
-!README.md
+# Debug/test output files (project-specific)
+check_out.txt
+debug_apps.txt
+migrate_out.txt
+migration_out.txt
+path_check.txt
+pytest_out.txt
+test_out.txt
+test_out2.txt
+test_out3.txt
 
 # Distribution / packaging
 dist/
