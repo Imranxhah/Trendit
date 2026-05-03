@@ -1,0 +1,10 @@
+from django.urls import path
+from .views import PostCreateView, PostFeedView, CategoryListView, TrendingFeedView, SubPostCreateView
+
+urlpatterns = [
+    path('posts/', PostCreateView.as_view(), name='post-create'),
+    path('feed/', PostFeedView.as_view(), name='post-feed'),
+    path('trending/', TrendingFeedView.as_view(), name='post-trending'),
+    path('subposts/', SubPostCreateView.as_view(), name='subpost-create'),
+    path('categories/', CategoryListView.as_view(), name='category-list'),
+]
