@@ -1,7 +1,13 @@
 from rest_framework import generics, permissions, status
 from rest_framework.response import Response
+from rest_framework.views import APIView
+from django.conf import settings
+from django.utils import timezone
+from datetime import timedelta
 from .models import Notification, Report
 from .serializers import NotificationSerializer, ReportSerializer
+import cloudinary
+import cloudinary.uploader
 
 class NotificationListView(generics.ListAPIView):
     serializer_class = NotificationSerializer
@@ -29,3 +35,73 @@ class ReportCreateView(generics.CreateAPIView):
 
     def perform_create(self, serializer):
         serializer.save(reporter=self.request.user)
+
+
+class CleanupExpiredMediaView(APIView):
+    """
+    POST /api/core/cleanup-media/
+    Protected by a secret token passed in the Authorization header:
+        Authorization: Bearer <CLEANUP_SECRET_TOKEN>
+    Called daily by an external cron service (e.g. cron-job.org).
+    Deletes Cloudinary media files for posts/subposts older than 7 days.
+    """
+    permission_classes = [permissions.AllowAny]
+
+    def _delete_cloudinary_file(self, file_field):
+        if not file_field or not file_field.name:
+            return False
+        public_id = file_field.name
+        video_exts = ('.mp4', '.mov', '.avi', '.mkv', '.webm')
+        original_name = public_id.lower()
+        for ext in ['.mp4', '.mov', '.avi', '.mkv', '.webm', '.jpg', '.jpeg', '.png', '.gif', '.webp']:
+            if original_name.endswith(ext):
+                public_id = public_id[:-(len(ext))]
+                break
+        resource_type = 'video' if any(original_name.endswith(e) for e in video_exts) else 'image'
+        try:
+            result = cloudinary.uploader.destroy(public_id, resource_type=resource_type)
+            return result.get('result') == 'ok'
+        except Exception:
+            return False
+
+    def post(self, request):
+        # Verify secret token
+        auth_header = request.headers.get('Authorization', '')
+        expected = f"Bearer {settings.CLEANUP_SECRET_TOKEN}"
+        if auth_header != expected:
+            return Response({'error': 'Forbidden'}, status=status.HTTP_403_FORBIDDEN)
+
+        from apps.content.models import Post, SubPost
+        expiry_date = timezone.now() - timedelta(days=7)
+
+        # Delete expired Post media
+        expired_posts = Post.objects.filter(
+            created_at__lt=expiry_date,
+            is_media_deleted=False
+        ).exclude(media_file='')
+        post_count = 0
+        for post in expired_posts:
+            if self._delete_cloudinary_file(post.media_file):
+                post.media_file = None
+                post.is_media_deleted = True
+                post.save(update_fields=['media_file', 'is_media_deleted'])
+                post_count += 1
+
+        # Delete expired SubPost media
+        expired_subposts = SubPost.objects.filter(
+            created_at__lt=expiry_date,
+            is_media_deleted=False
+        ).exclude(media_file='')
+        subpost_count = 0
+        for subpost in expired_subposts:
+            if self._delete_cloudinary_file(subpost.media_file):
+                subpost.media_file = None
+                subpost.is_media_deleted = True
+                subpost.save(update_fields=['media_file', 'is_media_deleted'])
+                subpost_count += 1
+
+        return Response({
+            'message': 'Cleanup complete',
+            'posts_cleaned': post_count,
+            'subposts_cleaned': subpost_count,
+        }, status=status.HTTP_200_OK)
