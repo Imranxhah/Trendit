@@ -26,8 +26,11 @@ cd Trendit
 
 ### 2. Create a Virtual Environment
 
+Use `--system-site-packages` to inherit PythonAnywhere's pre-installed packages
+and only download what's missing (saves space on the free tier):
+
 ```bash
-python3.11 -m venv venv
+python3.11 -m venv venv --system-site-packages
 source venv/bin/activate
 ```
 
