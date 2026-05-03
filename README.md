@@ -1,14 +1,15 @@
 # Trendit Backend
 
-A Django REST Framework backend for the Trendit social media application.
+A Django REST Framework backend for the Trendit social media application.  
+Media files (images & videos) are stored on **Cloudinary** and automatically deleted after **7 days** via a PythonAnywhere scheduled task.
 
 ## Tech Stack
 
 - **Framework**: Django 6.0 + Django REST Framework
 - **Auth**: JWT (SimpleJWT)
 - **Admin**: Unfold (modern Django admin)
-- **Database**: SQLite (easy to switch to PostgreSQL/MySQL)
-- **Other**: CORS headers, Phone number field
+- **Database**: SQLite
+- **Media Storage**: Cloudinary (free tier — 25GB storage / 25GB bandwidth per month)
 
 ---
 
@@ -16,7 +17,7 @@ A Django REST Framework backend for the Trendit social media application.
 
 ### 1. Clone the Repository
 
-In your PythonAnywhere **Bash console**, run:
+In your PythonAnywhere **Bash console**:
 
 ```bash
 git clone https://github.com/Imranxhah/Trendit.git
@@ -36,21 +37,32 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### 4. Create Your `.env` File
+### 4. Get Your Cloudinary Credentials
+
+1. Go to [cloudinary.com](https://cloudinary.com) → **Sign Up Free**
+2. After logging in, open the **Dashboard**
+3. Copy your **Cloud name**, **API Key**, and **API Secret**
+
+### 5. Create Your `.env` File
 
 ```bash
 cp .env.example .env
 nano .env
 ```
 
-Edit the file with your actual values:
+Fill in your values:
 
-```
+```env
 SECRET_KEY=your-super-secret-key-here
 DEBUG=False
 ALLOWED_HOSTS=yourusername.pythonanywhere.com
+
 CORS_ALLOWED_ORIGINS=http://localhost:3000
 CORS_ALLOW_ALL_ORIGINS=False
+
+CLOUDINARY_CLOUD_NAME=your_cloud_name
+CLOUDINARY_API_KEY=your_api_key
+CLOUDINARY_API_SECRET=your_api_secret
 ```
 
 To generate a secure `SECRET_KEY`:
@@ -58,15 +70,10 @@ To generate a secure `SECRET_KEY`:
 python -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())"
 ```
 
-### 5. Run Migrations
+### 6. Run Migrations & Collect Static Files
 
 ```bash
 python manage.py migrate
-```
-
-### 6. Collect Static Files
-
-```bash
 python manage.py collectstatic --noinput
 ```
 
@@ -80,22 +87,18 @@ python manage.py createsuperuser
 
 1. Go to **Web** tab → **Add a new web app**
 2. Choose **Manual configuration** → Select **Python 3.11**
-3. Set the **Source code** directory:  
-   `/home/yourusername/Trendit`
-4. Set the **Working directory**:  
-   `/home/yourusername/Trendit`
-5. Set the **Virtualenv** path:  
-   `/home/yourusername/Trendit/venv`
+3. Set the **Source code** directory: `/home/yourusername/Trendit`
+4. Set the **Working directory**: `/home/yourusername/Trendit`
+5. Set the **Virtualenv** path: `/home/yourusername/Trendit/venv`
 
 ### 9. Configure the WSGI File
 
-Click on the WSGI configuration file link in the Web tab and replace its contents with:
+Click the WSGI configuration file link in the Web tab and replace its entire contents with:
 
 ```python
 import sys
 import os
 
-# Add the project to the path
 path = '/home/yourusername/Trendit'
 if path not in sys.path:
     sys.path.insert(0, path)
@@ -110,14 +113,30 @@ application = get_wsgi_application()
 
 In the **Web** tab → **Static files** section, add:
 
-| URL       | Directory                                        |
-|-----------|--------------------------------------------------|
-| `/static/` | `/home/yourusername/Trendit/staticfiles/`       |
-| `/media/`  | `/home/yourusername/Trendit/media/`             |
+| URL        | Directory                                          |
+|------------|----------------------------------------------------|
+| `/static/` | `/home/yourusername/Trendit/staticfiles/`          |
 
-### 11. Reload the Web App
+> Media files are served directly from Cloudinary — no local `/media/` entry needed.
 
-Click the **Reload** button on the Web tab. Your API will be live at:  
+### 11. Set Up Automatic Weekly Media Deletion
+
+PythonAnywhere's **Scheduled Tasks** run your management command daily to delete Cloudinary files older than 7 days.
+
+1. Go to the **Tasks** tab on PythonAnywhere
+2. Click **Add a new scheduled task**
+3. Set it to run **Daily** (e.g., at `02:00`)
+4. Enter this command:
+
+```bash
+/home/yourusername/Trendit/venv/bin/python /home/yourusername/Trendit/manage.py delete_expired_media
+```
+
+That's it! Media files will be automatically deleted from Cloudinary every night, 7 days after they were posted.
+
+### 12. Reload the Web App
+
+Click **Reload** on the Web tab. Your API is live at:  
 `https://yourusername.pythonanywhere.com/`
 
 ---
@@ -136,26 +155,32 @@ See [API_DOCUMENTATION.md](API_DOCUMENTATION.md) for full endpoint reference.
 
 ---
 
+## How Media Deletion Works
+
+1. User uploads a post/sub-post → file goes to **Cloudinary** automatically
+2. Every night, the scheduled task runs `python manage.py delete_expired_media`
+3. The command finds all posts where `created_at < now - 7 days` and `is_media_deleted=False`
+4. It calls **Cloudinary's API** to delete the file from the cloud
+5. The DB record's `media_file` is cleared and `is_media_deleted = True` is set
+6. The post/sub-post record itself is **kept** in the database
+
+---
+
 ## Local Development
 
 ```bash
-# Clone and enter the directory
 git clone https://github.com/Imranxhah/Trendit.git
 cd Trendit
 
-# Create and activate venv
 python -m venv venv
 source venv/bin/activate      # Linux/Mac
 venv\Scripts\activate         # Windows
 
-# Install dependencies
 pip install -r requirements.txt
 
-# Set up environment
 cp .env.example .env
-# Edit .env: set DEBUG=True and SECRET_KEY
+# Edit .env: set DEBUG=True, SECRET_KEY, and your Cloudinary credentials
 
-# Run migrations and start server
 python manage.py migrate
 python manage.py runserver
 ```

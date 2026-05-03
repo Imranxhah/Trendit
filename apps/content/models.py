@@ -71,9 +71,10 @@ class SubPost(models.Model):
     """
     parent_post = models.ForeignKey(Post, on_delete=models.CASCADE, related_name='sub_posts')
     author = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='sub_posts')
-    media_file = models.FileField(upload_to='subposts/')
+    media_file = models.FileField(upload_to='subposts/', null=True, blank=True)
     caption = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
+    is_media_deleted = models.BooleanField(default=False)
 
     def __str__(self):
         return f"Reply by {self.author.username} to Post {self.parent_post.id}"
