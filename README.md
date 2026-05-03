@@ -55,7 +55,7 @@ Fill in your values:
 ```env
 SECRET_KEY=your-super-secret-key-here
 DEBUG=False
-ALLOWED_HOSTS=yourusername.pythonanywhere.com
+ALLOWED_HOSTS=skorpion.pythonanywhere.com
 
 CORS_ALLOWED_ORIGINS=http://localhost:3000
 CORS_ALLOW_ALL_ORIGINS=False
@@ -87,9 +87,9 @@ python manage.py createsuperuser
 
 1. Go to **Web** tab → **Add a new web app**
 2. Choose **Manual configuration** → Select **Python 3.11**
-3. Set the **Source code** directory: `/home/yourusername/Trendit`
-4. Set the **Working directory**: `/home/yourusername/Trendit`
-5. Set the **Virtualenv** path: `/home/yourusername/Trendit/venv`
+3. Set the **Source code** directory: `/home/skorpion/Trendit`
+4. Set the **Working directory**: `/home/skorpion/Trendit`
+5. Set the **Virtualenv** path: `/home/skorpion/Trendit/venv`
 
 ### 9. Configure the WSGI File
 
@@ -99,7 +99,7 @@ Click the WSGI configuration file link in the Web tab and replace its entire con
 import sys
 import os
 
-path = '/home/yourusername/Trendit'
+path = '/home/skorpion/Trendit'
 if path not in sys.path:
     sys.path.insert(0, path)
 
@@ -115,7 +115,7 @@ In the **Web** tab → **Static files** section, add:
 
 | URL        | Directory                                          |
 |------------|----------------------------------------------------|
-| `/static/` | `/home/yourusername/Trendit/staticfiles/`          |
+| `/static/` | `/home/skorpion/Trendit/staticfiles/`          |
 
 > Media files are served directly from Cloudinary — no local `/media/` entry needed.
 
@@ -129,7 +129,7 @@ PythonAnywhere's **Scheduled Tasks** run your management command daily to delete
 4. Enter this command:
 
 ```bash
-/home/yourusername/Trendit/venv/bin/python /home/yourusername/Trendit/manage.py delete_expired_media
+/home/skorpion/Trendit/venv/bin/python /home/skorpion/Trendit/manage.py delete_expired_media
 ```
 
 That's it! Media files will be automatically deleted from Cloudinary every night, 7 days after they were posted.
@@ -137,7 +137,7 @@ That's it! Media files will be automatically deleted from Cloudinary every night
 ### 12. Reload the Web App
 
 Click **Reload** on the Web tab. Your API is live at:  
-`https://yourusername.pythonanywhere.com/`
+`https://skorpion.pythonanywhere.com/`
 
 ---
 
