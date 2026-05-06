@@ -3,6 +3,7 @@ Django settings for trendit_backend project.
 Production-ready configuration for PythonAnywhere deployment.
 """
 
+import os
 from pathlib import Path
 from decouple import config, Csv
 
@@ -112,6 +113,29 @@ CLOUDINARY_STORAGE = {
     'API_KEY': config('CLOUDINARY_API_KEY', default=''),
     'API_SECRET': config('CLOUDINARY_API_SECRET', default=''),
 }
+
+# ─── PythonAnywhere Proxy (required for outbound connections on free tier) ────
+# PythonAnywhere free accounts cannot make direct outbound TCP connections.
+# All external requests (including Cloudinary uploads) must route through
+# their HTTP proxy at proxy.server:3128.
+# We detect PA by checking if HOME starts with /home/<username> on Linux.
+_IS_PYTHONANYWHERE = os.path.exists('/etc/myconfig.fish') or \
+    os.environ.get('PYTHONANYWHERE_SITE') or \
+    os.environ.get('HOME', '').startswith('/home/')
+
+if _IS_PYTHONANYWHERE:
+    _PA_PROXY = 'http://proxy.server:3128'
+    # Set for urllib3 / requests (used by cloudinary SDK internally)
+    os.environ.setdefault('HTTP_PROXY', _PA_PROXY)
+    os.environ.setdefault('HTTPS_PROXY', _PA_PROXY)
+    # Set directly on cloudinary SDK config so it routes uploads via the proxy
+    import cloudinary
+    cloudinary.config(
+        cloud_name=CLOUDINARY_STORAGE['CLOUD_NAME'],
+        api_key=CLOUDINARY_STORAGE['API_KEY'],
+        api_secret=CLOUDINARY_STORAGE['API_SECRET'],
+        api_proxy=_PA_PROXY,
+    )
 
 STORAGES = {
     "default": {
