@@ -13,56 +13,78 @@ from .models import OTPVerification
 import random
 
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
-    username_field = 'email'
-    email = serializers.CharField()
+    """
+    Overrides simplejwt's default serializer so users can log in with
+    username, email, OR phone number — all sent under the 'username' key.
+
+    Why: simplejwt's base class calls User.objects.get_by_natural_key() which
+    only looks up by the USERNAME_FIELD ('username'). Sending an email would
+    fail that lookup before DualLoginBackend ever gets a chance to run.
+    We bypass it by calling django.contrib.auth.authenticate() directly.
+    """
+
+    # Tell simplejwt the input field is called 'username' (matches Flutter payload)
+    username_field = 'username'
 
     def validate(self, attrs):
-        try:
-            data = super().validate(attrs)
-        except exceptions.AuthenticationFailed as e:
-            print(f"!!! Authentication Failed during super().validate: {e} !!!")
-            raise e
-        
-        # After super().validate, self.user should be set if authentication was successful
-        if self.user:
-            print(f"--- User authenticated: {self.user.email}. is_verified: {self.user.is_verified}, is_banned: {self.user.is_banned} ---")
+        from django.contrib.auth import authenticate
 
+        identifier = attrs.get('username') or attrs.get(self.username_field, '')
+        password = attrs.get('password', '')
+
+        print(f"--- CustomTokenObtainPairSerializer: identifier='{identifier}' ---")
+
+        # Authenticate via DualLoginBackend (handles username / email / phone)
+        user = authenticate(
+            request=self.context.get('request'),
+            username=identifier,
+            password=password,
+        )
+
+        if user is None:
+            print(f"!!! Authentication failed for identifier: '{identifier}' !!!")
+            raise exceptions.AuthenticationFailed(
+                'No active account found with the given credentials.',
+                code='no_active_account',
+            )
+
+        self.user = user
+        print(f"--- User authenticated: {self.user.email}. is_verified: {self.user.is_verified}, is_banned: {self.user.is_banned} ---")
+
+        # Block unverified users — send them a fresh OTP
         if not self.user.is_verified:
-            # Generate new OTP for the user since they tried to log in
             OTPVerification.objects.filter(user=self.user).delete()
             otp_code = str(random.randint(100000, 999999))
             expires_at = timezone.now() + timedelta(minutes=10)
             OTPVerification.objects.create(
                 user=self.user,
                 otp_code=otp_code,
-                expires_at=expires_at
+                expires_at=expires_at,
             )
             print(f"!!! Login failed: User is unverified. New OTP for {self.user.email} is {otp_code} !!!")
-            
-            # The custom exception handler looks for 'detail' string by default to assign to 'message'
-            # To allow frontend detection, we return a specific phrase.
             raise exceptions.AuthenticationFailed(
                 'ACCOUNT_NOT_VERIFIED',
-                code='not_verified'
+                code='not_verified',
             )
 
+        # Block banned users
         if self.user.is_banned:
             reason = self.user.ban_reason or 'No reason provided.'
             print(f"!!! Login failed: User {self.user.email} is banned. Reason: {reason} !!!")
             raise exceptions.AuthenticationFailed(
                 f'Your account has been banned. Reason: {reason}',
-                code='account_banned'
+                code='account_banned',
             )
-        
+
+        # Generate JWT token pair manually (bypasses simplejwt's own DB lookup)
+        refresh = self.get_token(self.user)
+        data = {
+            'refresh': str(refresh),
+            'access': str(refresh.access_token),
+        }
+
         print(f"--- Login successful for user: {self.user.email} ---")
         return data
-
-class UserRegistrationSerializer(serializers.ModelSerializer):
-    password = serializers.CharField(write_only=True)
-
-    class Meta:
-        model = User
-        fields = ['email', 'password', 'phone_number']
 
 class UserRegistrationSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True)
@@ -83,30 +105,31 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
         if value:
             user = User.objects.filter(phone_number=value).first()
             if user and user.is_verified:
-                raise serializers.ValidationError("user with this phone number already exists.")
-        return value
+                raise serializers.ValidationError("user with this phone number already exists.")      
+            return value
+        return None # Return None instead of '' to avoid uniqueness issues in DB
 
     def create(self, validated_data):
         email = validated_data['email']
         phone_number = validated_data.get('phone_number')
-        
+
         # If an unverified user exists with this email or phone, delete them so they can restart registration cleanly
         existing_user = User.objects.filter(email=email, is_verified=False).first()
         if not existing_user and phone_number:
-            existing_user = User.objects.filter(phone_number=phone_number, is_verified=False).first()
-            
+            existing_user = User.objects.filter(phone_number=phone_number, is_verified=False).first() 
+
         if existing_user:
             existing_user.delete()
-            
+
         base_username = email.split('@')[0]
         username = base_username
-        
+
         # Ensure username is unique
         counter = 1
         while User.objects.filter(username=username).exists():
             username = f"{base_username}{counter}"
             counter += 1
-            
+
         user = User.objects.create_user(
             username=username,
             email=email,
