@@ -9,6 +9,8 @@ from .serializers import (
     UserMinimalSerializer
 )
 from django.contrib.auth import get_user_model
+from apps.content.models import Post
+from apps.content.serializers import PostSerializer
 
 User = get_user_model()
 
@@ -85,16 +87,38 @@ class CloseBuddyListCreateView(generics.ListCreateAPIView):
         serializer.save(user=user)
 
 class PostApprovalCreateView(generics.CreateAPIView):
+    """
+    POST /api/social/approve-post/
+    Body: { "post": <post_id> }
+    Allows a close buddy of the post's author to approve (vote the post into Active).
+    Only close buddies of the author can call this. Each buddy can approve once per post.
+    """
     serializer_class = PostApprovalSerializer
     permission_classes = [permissions.IsAuthenticated]
 
     def perform_create(self, serializer):
-        # Validation: Only Close Buddies can approve (logic handled in clean or here)
         post = serializer.validated_data['post']
-        if not CloseBuddy.objects.filter(user=post.author, buddy=self.request.user).exists():
+        user = self.request.user
+
+        # Guard: caller must be a close buddy of the post author
+        if not CloseBuddy.objects.filter(user=post.author, buddy=user).exists():
             from rest_framework.exceptions import ValidationError
             raise ValidationError("Only close buddies of the author can approve this post.")
-        serializer.save(buddy=self.request.user)
+
+        # Guard: post must be in pending state
+        if post.status != 'pending':
+            from rest_framework.exceptions import ValidationError
+            raise ValidationError("This post is not pending approval.")
+
+        serializer.save(buddy=user)
+
+        # Auto-activate: if all 5 close buddies (or however many exist) have approved, mark as active
+        total_buddies = CloseBuddy.objects.filter(user=post.author).count()
+        total_approvals = PostApproval.objects.filter(post=post).count() + 1  # +1 for current
+        if total_buddies > 0 and total_approvals >= total_buddies:
+            post.status = 'active'
+            post.save(update_fields=['status'])
+
 
 class VoteCreateView(generics.CreateAPIView):
     serializer_class = VoteSerializer
@@ -102,3 +126,77 @@ class VoteCreateView(generics.CreateAPIView):
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
+
+
+# ─── New Endpoints ────────────────────────────────────────────────────────────
+
+class UnapprovedBuddyPostsView(generics.ListAPIView):
+    """
+    GET /api/social/close-buddies/unapproved-posts/
+    Returns all posts authored by the current user's close buddies
+    that are still in 'pending' status AND have NOT yet been approved by the current user.
+    Auth required.
+    """
+    serializer_class = PostSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+
+        # IDs of users who are in this user's close buddy list
+        close_buddy_ids = CloseBuddy.objects.filter(
+            user=user
+        ).values_list('buddy_id', flat=True)
+
+        # IDs of posts the current user has already approved
+        already_approved_post_ids = PostApproval.objects.filter(
+            buddy=user
+        ).values_list('post_id', flat=True)
+
+        # Pending posts by close buddies that this user hasn't approved yet
+        return Post.objects.filter(
+            author__in=close_buddy_ids,
+            status='pending',
+            is_media_deleted=False
+        ).exclude(
+            id__in=already_approved_post_ids
+        ).order_by('-created_at')
+
+
+class UserSearchView(generics.ListAPIView):
+    """
+    GET /api/users/search/?q=<query>
+    Smart search: matches users whose username, first_name, or last_name
+    contains the query string (case-insensitive). Returns minimal user info.
+    Auth required.
+    """
+    serializer_class = UserMinimalSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        query = self.request.query_params.get('q', '').strip()
+        if not query:
+            return User.objects.none()
+        return User.objects.filter(
+            Q(username__icontains=query) |
+            Q(first_name__icontains=query) |
+            Q(last_name__icontains=query),
+            is_active=True
+        ).exclude(id=self.request.user.id).order_by('username')[:30]
+
+
+class PendingSentRequestsView(generics.ListAPIView):
+    """
+    GET /api/social/buddies/pending-sent/
+    Returns all buddy requests that the current user has SENT
+    and are still in 'pending' status (not accepted or rejected yet).
+    Auth required.
+    """
+    serializer_class = BuddyRequestSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return BuddyRequest.objects.filter(
+            sender=self.request.user,
+            status='pending'
+        ).order_by('-created_at')
