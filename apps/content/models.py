@@ -32,6 +32,7 @@ class Post(models.Model):
     category = models.ForeignKey(Category, on_delete=models.SET_NULL, null=True, related_name='posts')
     media_file = models.FileField(upload_to='posts/', null=True, blank=True)
     caption = models.TextField()
+    aspect_ratio = models.FloatField(null=True, blank=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
     created_at = models.DateTimeField(auto_now_add=True)
     is_media_deleted = models.BooleanField(default=False)
@@ -73,6 +74,7 @@ class SubPost(models.Model):
     author = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='sub_posts')
     media_file = models.FileField(upload_to='subposts/', null=True, blank=True)
     caption = models.TextField(blank=True)
+    aspect_ratio = models.FloatField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     is_media_deleted = models.BooleanField(default=False)
 

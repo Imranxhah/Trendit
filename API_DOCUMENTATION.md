@@ -5,7 +5,7 @@ This document provides a comprehensive detail of each endpoint provided by the T
 ## Table of Contents
 1. [User Authentication & Management](#1-user-authentication--management)
 2. [Content Management (Posts & Categories)](#2-content-management-posts--categories)
-3. [Social Interactions (Buddies & Voting)](#3-social-interactions-buddies--voting)
+3. [Social Interactions (Follow, Buddy & Close Buddy)](#3-social-interactions-follow-buddy--close-buddy)
 4. [Core Features (Notifications & Reporting)](#4-core-features-notifications--reporting)
 
 ---
@@ -15,66 +15,102 @@ This document provides a comprehensive detail of each endpoint provided by the T
 ### Register User
 *   **URL:** `/api/users/register/`
 *   **Method:** `POST`
-*   **Description:** Registers a new user account using email and password. A unique username is automatically generated from the email prefix. A 6-digit OTP is generated and printed to the console for verification.
+*   **Description:** Registers a new user account. A 6-digit OTP is generated and printed to the console for verification.
 *   **Input Data (JSON):**
     *   `email` (string, required)
     *   `password` (string, required)
+    *   `phone_number` (string, optional)
 *   **Success Response:**
     *   **Status Code:** `201 Created`
     *   **Data:** `{"message": "User registered successfully. Please verify your email with the OTP sent.", "email": "user@example.com"}`
-*   **Failure Response:**
-    *   **Status Code:** `400 Bad Request`
-    *   **Reason:** Validation error (e.g., email already exists, missing fields).
 
 ### Verify OTP
 *   **URL:** `/api/users/verify-otp/`
 *   **Method:** `POST`
-*   **Description:** Verifies the user's email using the OTP sent during registration.
+*   **Description:** Verifies the user's account using the OTP code.
 *   **Input Data (JSON):**
-    *   `email` (string, required)
+    *   `email` (string, required): Can be email, username, or phone number.
     *   `otp_code` (string, 6 characters, required)
 *   **Success Response:**
     *   **Status Code:** `200 OK`
-    *   **Data:** `{"message": "Email verified successfully. You can now login."}`
-*   **Failure Response:**
-    *   **Status Code:** `400 Bad Request`
-    *   **Reason:** Invalid or expired OTP, or user not found.
+    *   **Data:** `{"message": "Account verified successfully. You can now login."}`
 
 ### Login (Obtain Token)
 *   **URL:** `/api/users/login/`
 *   **Method:** `POST`
-*   **Description:** Authenticates a user and returns JWT access and refresh tokens. **User must be verified to login.**
+*   **Description:** Authenticates a user and returns JWT access and refresh tokens. Supports login via email, username, or phone number.
 *   **Input Data (JSON):**
-    *   `username` (string, required): Can be the user's **Username**, **Email**, or **Phone Number**.
+    *   `username` (string, required): User's identifier (Email, Username, or Phone).
     *   `password` (string, required)
 *   **Success Response:**
     *   **Status Code:** `200 OK`
-    *   **Data:** `{"refresh": "REFRESH_TOKEN", "access": "ACCESS_TOKEN"}`
-*   **Failure Response:**
-    *   **Status Code:** `401 Unauthorized`
-    *   **Reason:** Invalid credentials or account not verified.
+    *   **Data:** `{"refresh": "...", "access": "..."}`
 
 ### Token Refresh
 *   **URL:** `/api/users/token/refresh/`
 *   **Method:** `POST`
-*   **Description:** Provides a new access token using a valid refresh token.
 *   **Input Data (JSON):**
     *   `refresh` (string, required)
 *   **Success Response:**
     *   **Status Code:** `200 OK`
-    *   **Data:** `{"access": "NEW_ACCESS_TOKEN"}`
+    *   **Data:** `{"access": "..."}`
 
 ### User Profile
 *   **URL:** `/api/users/profile/`
 *   **Method:** `GET`, `PUT`, `PATCH`
 *   **Auth Required:** Yes
-*   **Description:** Retrieves or updates the current user's profile information (username and phone number).
+*   **Description:** Retrieves or updates the current user's profile.
 *   **Input Data (PUT/PATCH JSON):**
     *   `username` (string, optional)
     *   `phone_number` (string, optional)
 *   **Success Response:**
     *   **Status Code:** `200 OK`
     *   **Data:** `{"username": "...", "phone_number": "...", "email": "..."}`
+
+### User Search
+*   **URL:** `/api/users/search/`
+*   **Method:** `GET`
+*   **Auth Required:** Yes
+*   **Description:** Search users by username, first name, or last name.
+*   **Query Parameters:**
+    *   `q` (string, required): Search query.
+*   **Success Response:**
+    *   **Status Code:** `200 OK`
+    *   **Data:** List of user objects (id, username, email).
+
+### Forgot Password Request
+*   **URL:** `/api/users/forgot-password/`
+*   **Method:** `POST`
+*   **Description:** Requests a password reset OTP for a given email.
+*   **Input Data (JSON):**
+    *   `email` (string, required)
+*   **Success Response:**
+    *   **Status Code:** `200 OK`
+    *   **Data:** `{"message": "Password reset OTP sent to email.", "email": "..."}`
+
+### Reset Password
+*   **URL:** `/api/users/reset-password/`
+*   **Method:** `POST`
+*   **Description:** Resets the password using the OTP code received via email.
+*   **Input Data (JSON):**
+    *   `email` (string, required)
+    *   `otp_code` (string, required)
+    *   `new_password` (string, required, min 6 characters)
+*   **Success Response:**
+    *   **Status Code:** `200 OK`
+    *   **Data:** `{"message": "Password has been reset successfully. You can now login."}`
+
+### Ban User (Admin Only)
+*   **URL:** `/api/users/ban/<int:user_id>/`
+*   **Method:** `POST`
+*   **Auth Required:** Yes (Admin)
+*   **Input Data (JSON):**
+    *   `ban_reason` (string, optional)
+
+### Unban User (Admin Only)
+*   **URL:** `/api/users/unban/<int:user_id>/`
+*   **Method:** `POST`
+*   **Auth Required:** Yes (Admin)
 
 ---
 
@@ -84,141 +120,126 @@ This document provides a comprehensive detail of each endpoint provided by the T
 *   **URL:** `/api/content/posts/`
 *   **Method:** `POST`
 *   **Auth Required:** Yes
-*   **Description:** Creates a new main post. Uploads are restricted by a time window defined in `AppSettings`. Media size is validated.
 *   **Input Data (Multipart/Form-Data):**
     *   `category` (integer, ID, required)
     *   `media_file` (file, required)
     *   `caption` (string, required)
-*   **Success Response:**
-    *   **Status Code:** `201 Created`
-    *   **Data:** Serialized post object.
-*   **Failure Response:**
-    *   **Status Code:** `400 Bad Request`
-    *   **Reason:** Outside upload window, file too large, or missing data.
+    *   `aspect_ratio` (float, optional): Calculated as width/height on client.
 
 ### Get Post Feed
 *   **URL:** `/api/content/feed/`
 *   **Method:** `GET`
-*   **Auth Required:** No
-*   **Description:** Returns a list of all posts that have not had their media deleted, ordered by most recent.
-*   **Success Response:**
-    *   **Status Code:** `200 OK`
-    *   **Data:** List of post objects (includes author, category, media_url, caption, status, avg_rating, vote_count, and sub_posts).
+*   **Description:** Returns all posts where media is not deleted, ordered by most recent.
 
 ### Get Trending Feed
 *   **URL:** `/api/content/trending/`
 *   **Method:** `GET`
-*   **Auth Required:** No
-*   **Description:** Returns the top 10 "Active" or "Trending" posts ordered by average rating and vote count.
-*   **Success Response:**
-    *   **Status Code:** `200 OK`
-    *   **Data:** List of top 10 post objects.
+*   **Description:** Returns top "Active" or "Trending" posts.
 
 ### Create Sub-Post (Reply)
 *   **URL:** `/api/content/subposts/`
 *   **Method:** `POST`
 *   **Auth Required:** Yes
-*   **Description:** Creates a media-based reply to an existing post.
 *   **Input Data (Multipart/Form-Data):**
     *   `parent_post` (integer, ID, required)
     *   `media_file` (file, required)
     *   `caption` (string, optional)
-*   **Success Response:**
-    *   **Status Code:** `201 Created`
-    *   **Data:** Serialized sub-post object.
+    *   `aspect_ratio` (float, optional): Calculated as width/height on client.
 
 ### List Categories
 *   **URL:** `/api/content/categories/`
 *   **Method:** `GET`
-*   **Auth Required:** No
-*   **Description:** Returns a list of all available post categories.
-*   **Success Response:**
-    *   **Status Code:** `200 OK`
-    *   **Data:** `[{"id": 1, "name": "Category Name", "slug": "category-name"}, ...]`
 
 ---
 
-## 3. Social Interactions (Buddies & Voting)
+## 3. Social Interactions (Follow, Buddy & Close Buddy)
 
-### Send Buddy Request
-*   **URL:** `/api/social/buddies/request/`
+### Follow / Unfollow
+*   **URL:** `/api/social/follow/`
+*   **Method:** `POST`, `DELETE`
+*   **Auth Required:** Yes
+*   **Description:** `POST` to follow a user, `DELETE` to unfollow. One-way relationship.
+*   **Input Data (JSON):**
+    *   `user_id` (integer, required): ID of the target user.
+
+### List Following
+*   **URL:** `/api/social/following/`
+*   **Method:** `GET`
+*   **Auth Required:** Yes
+*   **Description:** Lists users you are following.
+
+### List Followers
+*   **URL:** `/api/social/followers/`
+*   **Method:** `GET`
+*   **Auth Required:** Yes
+*   **Description:** Lists users following you.
+
+### List Buddies (Mutual Follows)
+*   **URL:** `/api/social/buddies/`
+*   **Method:** `GET`
+*   **Auth Required:** Yes
+*   **Description:** Lists users with whom you have a mutual follow relationship. **Buddies are created automatically** when two users follow each other.
+
+### Send Close Buddy Request
+*   **URL:** `/api/social/close-buddies/request/`
 *   **Method:** `POST`
 *   **Auth Required:** Yes
-*   **Description:** Sends a friend request to another user.
+*   **Description:** Permission-based request to add a user to your "Inner Circle" (max 5). 
+*   **Requirement:** You must be mutual **Buddies** to send a Close Buddy request.
 *   **Input Data (JSON):**
     *   `receiver` (integer, User ID, required)
-*   **Success Response:**
-    *   **Status Code:** `201 Created`
-    *   **Data:** Serialized request object.
 
-### Respond to Buddy Request
-*   **URL:** `/api/social/buddies/respond/`
+### Respond to Close Buddy Request
+*   **URL:** `/api/social/close-buddies/respond/`
 *   **Method:** `POST`
 *   **Auth Required:** Yes
-*   **Description:** Accepts or rejects an incoming buddy request.
 *   **Input Data (JSON):**
     *   `request_id` (integer, required)
     *   `action` (string: "accepted" or "rejected", required)
-*   **Success Response:**
-    *   **Status Code:** `200 OK`
-    *   **Data:** `{"message": "Request accepted/rejected."}`
-*   **Failure Response:**
-    *   **Status Code:** `404 Not Found` (if request doesn't exist or isn't for the current user).
 
-### List Incoming Requests
-*   **URL:** `/api/social/buddies/requests/`
+### List Incoming Close Buddy Requests
+*   **URL:** `/api/social/close-buddies/requests/`
 *   **Method:** `GET`
 *   **Auth Required:** Yes
-*   **Description:** Lists all pending buddy requests received by the current user.
-*   **Success Response:**
-    *   **Status Code:** `200 OK`
-    *   **Data:** List of pending buddy request objects.
 
-### List Buddies
-*   **URL:** `/api/social/buddies/list/`
+### List Pending Sent Close Buddy Requests
+*   **URL:** `/api/social/close-buddies/pending-sent/`
 *   **Method:** `GET`
 *   **Auth Required:** Yes
-*   **Description:** Lists all users who are mutual "buddies" (accepted requests).
-*   **Success Response:**
-    *   **Status Code:** `200 OK`
-    *   **Data:** List of user objects (minimal details).
 
-### Manage Close Buddies (Inner Circle)
+### List Close Buddies (Inner Circle)
 *   **URL:** `/api/social/close-buddies/`
-*   **Method:** `GET`, `POST`
+*   **Method:** `GET`
 *   **Auth Required:** Yes
-*   **Description:**
-    *   `GET`: Lists all users in the current user's "Inner Circle" (max 5).
-    *   `POST`: Adds a buddy to the Inner Circle. Automatically ensures they are a mutual buddy.
-*   **Input Data (POST JSON):**
-    *   `buddy` (integer, User ID, required)
-*   **Success Response (POST):**
-    *   **Status Code:** `201 Created`
-*   **Failure Response (POST):**
-    *   **Status Code:** `400 Bad Request`
-    *   **Reason:** Adding self, already in inner circle, or exceeding the limit of 5.
+
+### Remove Close Buddy
+*   **URL:** `/api/social/close-buddies/remove/`
+*   **Method:** `DELETE`
+*   **Auth Required:** Yes
+*   **Input Data (JSON):**
+    *   `user_id` (integer, required)
+
+### List Unapproved Posts from Close Buddies
+*   **URL:** `/api/social/close-buddies/unapproved-posts/`
+*   **Method:** `GET`
+*   **Auth Required:** Yes
+*   **Description:** Lists posts from your inner circle that you haven't approved yet.
 
 ### Approve Post
 *   **URL:** `/api/social/approve-post/`
 *   **Method:** `POST`
 *   **Auth Required:** Yes
-*   **Description:** A "Close Buddy" approves a post, moving it towards "Active" status.
+*   **Description:** Allows a close buddy to approve a pending post.
 *   **Input Data (JSON):**
     *   `post` (integer, ID, required)
-*   **Failure Response:**
-    *   **Status Code:** `400 Bad Request`
-    *   **Reason:** User is not a close buddy of the post author.
 
 ### Vote on Post
 *   **URL:** `/api/social/vote/`
 *   **Method:** `POST`
 *   **Auth Required:** Yes
-*   **Description:** Casts a rating (1-5) on a post.
 *   **Input Data (JSON):**
     *   `post` (integer, ID, required)
-    *   `value` (integer, 1 to 5, required)
-*   **Success Response:**
-    *   **Status Code:** `201 Created`
+    *   `value` (integer, 1-5, required)
 
 ---
 
@@ -228,31 +249,24 @@ This document provides a comprehensive detail of each endpoint provided by the T
 *   **URL:** `/api/core/notifications/`
 *   **Method:** `GET`
 *   **Auth Required:** Yes
-*   **Description:** Returns all notifications for the authenticated user, ordered by most recent.
-*   **Success Response:**
-    *   **Status Code:** `200 OK`
-    *   **Data:** List of notification objects (includes actor, verb, target, read_status).
 
 ### Mark Notification as Read
-*   **URL:** `/api/core/notifications/<id>/read/`
-*   **Method:** `PUT` / `PATCH`
+*   **URL:** `/api/core/notifications/<int:id>/read/`
+*   **Method:** `PATCH` / `PUT`
 *   **Auth Required:** Yes
-*   **Description:** Marks a specific notification as read.
-*   **Success Response:**
-    *   **Status Code:** `200 OK`
-    *   **Data:** `{"status": "notification marked as read"}`
-*   **Failure Response:**
-    *   **Status Code:** `403 Forbidden` (if the notification doesn't belong to the user).
 
 ### Report Content
 *   **URL:** `/api/core/report/`
 *   **Method:** `POST`
 *   **Auth Required:** Yes
-*   **Description:** Files a report against a post or other content.
 *   **Input Data (JSON):**
     *   `content_type` (integer, ContentType ID, required)
     *   `object_id` (integer, ID of the post/content, required)
     *   `reason` (string, required)
-*   **Success Response:**
-    *   **Status Code:** `201 Created`
-    *   **Data:** Serialized report object.
+
+### Cleanup Expired Media
+*   **URL:** `/api/core/cleanup-media/`
+*   **Method:** `POST`
+*   **Auth Required:** Yes (Secret Token)
+*   **Header:** `Authorization: Bearer <CLEANUP_SECRET_TOKEN>`
+*   **Description:** Triggers deletion of media files older than 7 days.

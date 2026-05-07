@@ -46,6 +46,8 @@ class CleanupExpiredMediaView(APIView):
     Deletes Cloudinary media files for posts/subposts older than 7 days.
     """
     permission_classes = [permissions.AllowAny]
+    authentication_classes = []  # Bypass global JWT authentication
+
 
     def _delete_cloudinary_file(self, file_field):
         if not file_field or not file_field.name:

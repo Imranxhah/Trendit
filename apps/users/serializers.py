@@ -146,7 +146,7 @@ class OTPVerifySerializer(serializers.Serializer):
 class UserProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ['username', 'phone_number', 'email']
+        fields = ['username', 'phone_number', 'email', 'first_name', 'last_name']
         read_only_fields = ['email'] # Usually email shouldn't be changed through simple profile update without verification
 
 class ForgotPasswordRequestSerializer(serializers.Serializer):

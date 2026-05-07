@@ -27,8 +27,15 @@ class RegisterView(generics.CreateAPIView):
     serializer_class = UserRegistrationSerializer
 
     def create(self, request, *args, **kwargs):
+        print("DEBUG RegisterView: create() called")
+        try:
+            print("DEBUG RegisterView: request.data =", request.data)
+        except Exception as e:
+            print("DEBUG RegisterView: Error parsing request data:", e)
         serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
+        if not serializer.is_valid():
+            print("Registration validation errors:", serializer.errors)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         user = serializer.save()
         
         # Generate 6-digit OTP
