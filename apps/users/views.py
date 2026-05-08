@@ -13,6 +13,7 @@ from .serializers import (
     ForgotPasswordRequestSerializer,
     ForgotPasswordResetSerializer
 )
+from .utils import send_otp_email
 
 
 class UserProfileView(generics.RetrieveUpdateAPIView):
@@ -50,6 +51,14 @@ class RegisterView(generics.CreateAPIView):
         
         # Print OTP to console (as requested)
         print(f"DEBUG: OTP for {user.email} is {otp_code}")
+        
+        # Send OTP via Email
+        send_otp_email(
+            email=user.email,
+            username=user.username,
+            otp_code=otp_code,
+            purpose="register"
+        )
         
         return Response({
             "message": "User registered successfully. Please verify your email with the OTP sent.",
@@ -114,6 +123,14 @@ class ForgotPasswordRequestView(APIView):
         
         # Print OTP to console for debugging
         print(f"DEBUG: Password Reset OTP for {user.email} is {otp_code}")
+        
+        # Send OTP via Email
+        send_otp_email(
+            email=user.email,
+            username=user.username,
+            otp_code=otp_code,
+            purpose="password_reset"
+        )
         
         return Response({
             "message": "Password reset OTP sent to email.",
