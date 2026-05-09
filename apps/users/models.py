@@ -10,6 +10,7 @@ class User(AbstractUser):
     phone_number = PhoneNumberField(unique=True, null=True, blank=True)
     is_verified = models.BooleanField(default=False)
     username = models.CharField(max_length=150, unique=True)
+    profile_picture = models.ImageField(upload_to='profile_pics/', null=True, blank=True)
 
     # Ban fields — only admins should toggle these
     is_banned = models.BooleanField(default=False)
