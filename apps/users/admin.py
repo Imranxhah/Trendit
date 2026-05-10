@@ -26,8 +26,11 @@ class UserAdmin(BaseUserAdmin, ModelAdmin):
     search_fields = ('username', 'email', 'phone_number')
     actions = [ban_users, unban_users]
 
-    # Add ban fields to the user detail/edit form
+    # Add extra fields to the user detail/edit form
     fieldsets = BaseUserAdmin.fieldsets + (
+        ('Extra Profile Data', {
+            'fields': ('phone_number', 'profile_picture'),
+        }),
         ('Account Status', {
             'fields': ('is_verified', 'is_banned', 'ban_reason'),
         }),
