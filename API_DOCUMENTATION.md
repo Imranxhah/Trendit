@@ -126,10 +126,33 @@ This document provides a comprehensive detail of each endpoint provided by the T
     *   `caption` (string, required)
     *   `aspect_ratio` (float, optional): Calculated as width/height on client.
 
+### Edit Post
+*   **URL:** `/api/content/posts/<int:post_id>/`
+*   **Method:** `PATCH`
+*   **Auth Required:** Yes (Author Only)
+*   **Input Data (JSON):**
+    *   `caption` (string, optional)
+    *   `category` (integer, ID, optional)
+*   **Description:** Allows the author to update the caption or category of their post.
+
+### Delete Post
+*   **URL:** `/api/content/posts/<int:post_id>/`
+*   **Method:** `DELETE`
+*   **Auth Required:** Yes (Author Only)
+*   **Description:** Permanently deletes the post and removes the media file from Cloudinary.
+
 ### Get Post Feed
 *   **URL:** `/api/content/feed/`
 *   **Method:** `GET`
 *   **Description:** Returns all posts where media is not deleted, ordered by most recent.
+
+### Get User Posts
+*   **URL:** `/api/content/posts/user/<int:user_id>/`
+*   **Method:** `GET`
+*   **Description:** Returns all posts for a specific user. 
+    *   If you are the author, you see all your posts (pending, active, rejected).
+    *   If you are viewing someone else's profile, you only see their "Active" or "Trending" posts.
+    *   **Note:** This endpoint returns posts even if the media has been deleted (check `is_media_deleted` in response).
 
 ### Get Trending Feed
 *   **URL:** `/api/content/trending/`

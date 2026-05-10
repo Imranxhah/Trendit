@@ -81,6 +81,7 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         data = {
             'refresh': str(refresh),
             'access': str(refresh.access_token),
+            'user_id': self.user.id,
         }
 
         print(f"--- Login successful for user: {self.user.email} ---")
@@ -93,7 +94,7 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ['email', 'password', 'phone_number']
+        fields = ['id', 'email', 'password', 'phone_number']
 
     def validate_email(self, value):
         user = User.objects.filter(email=value).first()
@@ -146,8 +147,8 @@ class OTPVerifySerializer(serializers.Serializer):
 class UserProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ['username', 'phone_number', 'email', 'first_name', 'last_name', 'profile_picture']
-        read_only_fields = ['email'] # Usually email shouldn't be changed through simple profile update without verification
+        fields = ['id', 'username', 'phone_number', 'email', 'first_name', 'last_name', 'profile_picture']
+        read_only_fields = ['id', 'email'] # Usually email shouldn't be changed through simple profile update without verification
 
 class ForgotPasswordRequestSerializer(serializers.Serializer):
     email = serializers.EmailField()

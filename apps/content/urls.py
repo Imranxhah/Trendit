@@ -1,8 +1,13 @@
 from django.urls import path
-from .views import PostCreateView, PostFeedView, CategoryListView, TrendingFeedView, SubPostCreateView
+from .views import (
+    PostCreateView, PostFeedView, CategoryListView, 
+    TrendingFeedView, SubPostCreateView, UserPostListView, PostDetailView
+)
 
 urlpatterns = [
     path('posts/', PostCreateView.as_view(), name='post-create'),
+    path('posts/<int:pk>/', PostDetailView.as_view(), name='post-detail'),
+    path('posts/user/<int:user_id>/', UserPostListView.as_view(), name='user-posts'),
     path('feed/', PostFeedView.as_view(), name='post-feed'),
     path('trending/', TrendingFeedView.as_view(), name='post-trending'),
     path('subposts/', SubPostCreateView.as_view(), name='subpost-create'),

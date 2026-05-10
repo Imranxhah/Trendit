@@ -45,3 +45,61 @@ class CategoryListView(generics.ListAPIView):
     queryset = Category.objects.all()
     serializer_class = CategorySerializer
     permission_classes = [permissions.AllowAny]
+
+class UserPostListView(generics.ListAPIView):
+    """
+    GET /api/content/posts/user/<user_id>/
+    Returns all posts for a specific user.
+    If the requester is the author, they see all statuses (pending, active, etc.).
+    Otherwise, they only see 'active' or 'trending' posts.
+    Includes posts even if media is deleted.
+    """
+    serializer_class = PostSerializer
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+
+    def get_queryset(self):
+        user_id = self.kwargs.get('user_id')
+        queryset = Post.objects.filter(author_id=user_id)
+        
+        # If not the author, only show active/trending posts
+        if not self.request.user.is_authenticated or self.request.user.id != int(user_id):
+            queryset = queryset.filter(status__in=['active', 'trending'])
+            
+        return queryset.order_by('-created_at')
+
+class IsAuthor(permissions.BasePermission):
+    def has_object_permission(self, request, view, obj):
+        return obj.author == request.user
+
+import cloudinary.uploader
+
+class PostDetailView(generics.RetrieveUpdateDestroyAPIView):
+    """
+    GET    /api/content/posts/<id>/  -> Retrieve post details
+    PATCH  /api/content/posts/<id>/  -> Update caption/category (Author only)
+    DELETE /api/content/posts/<id>/  -> Delete post and its Cloudinary media (Author only)
+    """
+    queryset = Post.objects.all()
+    serializer_class = PostSerializer
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly, IsAuthor]
+
+    def perform_destroy(self, instance):
+        # Delete from Cloudinary before deleting from DB
+        if instance.media_file and not instance.is_media_deleted:
+            public_id = instance.media_file.name
+            # Basic cleanup logic for Cloudinary public_id
+            for ext in ['.mp4', '.mov', '.avi', '.mkv', '.webm', '.jpg', '.jpeg', '.png', '.gif', '.webp']:
+                if public_id.lower().endswith(ext):
+                    public_id = public_id[:-(len(ext))]
+                    break
+            
+            # Determine resource type
+            video_exts = ('.mp4', '.mov', '.avi', '.mkv', '.webm')
+            resource_type = 'video' if any(instance.media_file.name.lower().endswith(e) for e in video_exts) else 'image'
+            
+            try:
+                cloudinary.uploader.destroy(public_id, resource_type=resource_type)
+            except Exception:
+                pass # Silently fail if Cloudinary deletion fails
+        
+        instance.delete()
