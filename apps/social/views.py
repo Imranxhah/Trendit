@@ -3,12 +3,12 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from django.shortcuts import get_object_or_404
 from django.db.models import Q
-from .models import Follow, Buddy, CloseBuddy, CloseBuddyRequest, PostApproval, Vote
+from .models import Follow, Buddy, CloseBuddy, CloseBuddyRequest, PostApproval, Vote, Favorite
 from .serializers import (
     FollowSerializer, BuddySerializer,
     CloseBuddyRequestSerializer, CloseBuddyRespondSerializer,
     CloseBuddySerializer, PostApprovalSerializer, VoteSerializer,
-    UserMinimalSerializer
+    FavoriteSerializer, UserMinimalSerializer
 )
 from django.contrib.auth import get_user_model
 from apps.content.models import Post
@@ -256,11 +256,50 @@ class PostApprovalCreateView(generics.CreateAPIView):
 # ─── Vote ─────────────────────────────────────────────────────────────────────
 
 class VoteCreateView(generics.CreateAPIView):
+    """
+    POST /api/social/vote/
+    Body: { "post": <post_id>, "value": <1-5> }
+    Records a rating for a post. If the user has already rated this post,
+    the existing rating is updated to the new value.
+    """
     serializer_class = VoteSerializer
     permission_classes = [permissions.IsAuthenticated]
 
     def perform_create(self, serializer):
-        serializer.save(user=self.request.user)
+        post = serializer.validated_data['post']
+        user = self.request.user
+        value = serializer.validated_data['value']
+
+        # Use update_or_create to allow updating existing ratings
+        Vote.objects.update_or_create(
+            user=user,
+            post=post,
+            defaults={'value': value}
+        )
+
+
+class FavoriteToggleView(APIView):
+    """
+    POST /api/social/favorite/
+    Body: { "post": <post_id> }
+    Toggles a post as favorite for the current user.
+    Returns whether the post is now favorited or not.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        post_id = request.data.get('post')
+        if not post_id:
+            return Response({"error": "post ID is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        post = get_object_or_404(Post, id=post_id)
+        favorite, created = Favorite.objects.get_or_create(user=request.user, post=post)
+
+        if not created:
+            favorite.delete()
+            return Response({"is_favorited": False, "message": "Removed from favorites."}, status=status.HTTP_200_OK)
+
+        return Response({"is_favorited": True, "message": "Added to favorites."}, status=status.HTTP_201_CREATED)
 
 
 # ─── Unapproved Posts from Close Buddies ──────────────────────────────────────

@@ -25,6 +25,9 @@ class PostSerializer(serializers.ModelSerializer):
     category_name = serializers.ReadOnlyField(source='category.name')
     avg_rating = serializers.FloatField(read_only=True)
     vote_count = serializers.IntegerField(read_only=True)
+    user_rating = serializers.IntegerField(read_only=True)
+    favorite_count = serializers.IntegerField(read_only=True)
+    is_favorited = serializers.BooleanField(read_only=True)
     sub_posts = SubPostSerializer(many=True, read_only=True)
 
     class Meta:
@@ -33,7 +36,7 @@ class PostSerializer(serializers.ModelSerializer):
             'id', 'author', 'author_username', 'author_profile_picture', 
             'category', 'category_name', 'media_file', 'caption', 'aspect_ratio', 
             'status', 'created_at', 'is_media_deleted', 'avg_rating', 
-            'vote_count', 'sub_posts'
+            'vote_count', 'user_rating', 'favorite_count', 'is_favorited', 'sub_posts'
         ]
         read_only_fields = ['author', 'created_at', 'status']
 

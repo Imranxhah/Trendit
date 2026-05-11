@@ -7,23 +7,33 @@ class PostCreateView(generics.CreateAPIView):
     serializer_class = PostSerializer
     permission_classes = [permissions.IsAuthenticated]
 
-from django.db.models import Avg, Count
+from django.db.models import Avg, Count, OuterRef, Subquery, Exists
 from .models import Post, Category, SubPost
 from .serializers import PostSerializer, CategorySerializer, SubPostSerializer
+from apps.social.models import Vote, Favorite
 
 class TrendingFeedView(generics.ListAPIView):
     serializer_class = PostSerializer
     permission_classes = [permissions.AllowAny]
 
     def get_queryset(self):
-        # Trending logic: Active posts ordered by average rating and vote count
-        # In a real app, this would be a more complex formula (e.g., Wilson Score or Hacker News algorithm)
-        return Post.objects.filter(
+        user = self.request.user
+        queryset = Post.objects.filter(
             status__in=['active', 'trending'],
             is_media_deleted=False
-        ).annotate(
+        )
+
+        if user.is_authenticated:
+            user_vote = Vote.objects.filter(post=OuterRef('pk'), user=user).values('value')
+            queryset = queryset.annotate(
+                user_rating=Subquery(user_vote[:1]),
+                is_favorited=Exists(Favorite.objects.filter(post=OuterRef('pk'), user=user))
+            )
+
+        return queryset.annotate(
             avg_rating=Avg('votes__value'),
-            vote_count=Count('votes')
+            vote_count=Count('votes'),
+            favorite_count=Count('favorited_by', distinct=True)
         ).order_by('-avg_rating', '-vote_count', '-created_at')[:10]
 
 class SubPostCreateView(generics.CreateAPIView):
@@ -38,8 +48,22 @@ class PostFeedView(generics.ListAPIView):
     permission_classes = [permissions.AllowAny] # Feed is public or restricted? Let's assume public for now
 
     def get_queryset(self):
-        # Returns posts where is_media_deleted=False
-        return Post.objects.filter(is_media_deleted=False).order_by('-created_at')
+        user = self.request.user
+        queryset = Post.objects.filter(is_media_deleted=False)
+
+        if user.is_authenticated:
+            user_vote = Vote.objects.filter(post=OuterRef('pk'), user=user).values('value')
+            queryset = queryset.annotate(
+                user_rating=Subquery(user_vote[:1]),
+                is_favorited=Exists(Favorite.objects.filter(post=OuterRef('pk'), user=user))
+            )
+
+        # Returns posts where is_media_deleted=False with ratings info
+        return queryset.annotate(
+            avg_rating=Avg('votes__value'),
+            vote_count=Count('votes'),
+            favorite_count=Count('favorited_by', distinct=True)
+        ).order_by('-created_at')
 
 class CategoryListView(generics.ListAPIView):
     queryset = Category.objects.all()
@@ -59,16 +83,34 @@ class UserPostListView(generics.ListAPIView):
 
     def get_queryset(self):
         user_id = self.kwargs.get('user_id')
+        user = self.request.user
         queryset = Post.objects.filter(author_id=user_id)
+
+        if user.is_authenticated:
+            user_vote = Vote.objects.filter(post=OuterRef('pk'), user=user).values('value')
+            queryset = queryset.annotate(
+                user_rating=Subquery(user_vote[:1]),
+                is_favorited=Exists(Favorite.objects.filter(post=OuterRef('pk'), user=user))
+            )
+        
+        queryset = queryset.annotate(
+            avg_rating=Avg('votes__value'),
+            vote_count=Count('votes'),
+            favorite_count=Count('favorited_by', distinct=True)
+        )
         
         # If not the author, only show active/trending posts
-        if not self.request.user.is_authenticated or self.request.user.id != int(user_id):
+        if not user.is_authenticated or user.id != int(user_id):
             queryset = queryset.filter(status__in=['active', 'trending'])
             
         return queryset.order_by('-created_at')
 
-class IsAuthor(permissions.BasePermission):
+class IsAuthorOrReadOnly(permissions.BasePermission):
     def has_object_permission(self, request, view, obj):
+        # Allow safe methods (GET, HEAD, OPTIONS)
+        if request.method in permissions.SAFE_METHODS:
+            return True
+        # Restricted to author for PATCH, PUT, DELETE
         return obj.author == request.user
 
 import cloudinary.uploader
@@ -79,9 +121,25 @@ class PostDetailView(generics.RetrieveUpdateDestroyAPIView):
     PATCH  /api/content/posts/<id>/  -> Update caption/category (Author only)
     DELETE /api/content/posts/<id>/  -> Delete post and its Cloudinary media (Author only)
     """
-    queryset = Post.objects.all()
     serializer_class = PostSerializer
-    permission_classes = [permissions.IsAuthenticatedOrReadOnly, IsAuthor]
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly, IsAuthorOrReadOnly]
+
+    def get_queryset(self):
+        user = self.request.user
+        queryset = Post.objects.all()
+
+        if user.is_authenticated:
+            user_vote = Vote.objects.filter(post=OuterRef('pk'), user=user).values('value')
+            queryset = queryset.annotate(
+                user_rating=Subquery(user_vote[:1]),
+                is_favorited=Exists(Favorite.objects.filter(post=OuterRef('pk'), user=user))
+            )
+
+        return queryset.annotate(
+            avg_rating=Avg('votes__value'),
+            vote_count=Count('votes'),
+            favorite_count=Count('favorited_by', distinct=True)
+        )
 
     def perform_destroy(self, instance):
         # Delete from Cloudinary before deleting from DB

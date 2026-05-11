@@ -14,7 +14,7 @@ from .views import (
     CloseBuddyListView, RemoveCloseBuddyView,
 
     # Interactions
-    PostApprovalCreateView, VoteCreateView,
+    PostApprovalCreateView, VoteCreateView, FavoriteToggleView,
 
     # Extra
     UnapprovedBuddyPostsView, UserSearchView,
@@ -43,6 +43,7 @@ urlpatterns = [
     # ── Interactions ─────────────────────────────────────────────────────────
     path('approve-post/', PostApprovalCreateView.as_view(), name='post-approval'),
     path('vote/', VoteCreateView.as_view(), name='vote'),
+    path('favorite/', FavoriteToggleView.as_view(), name='favorite-toggle'),
 
     # ── Search (social context) ───────────────────────────────────────────────
     path('users/search/', UserSearchView.as_view(), name='user-search'),
