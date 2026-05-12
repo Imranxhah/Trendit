@@ -7,19 +7,29 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.utils import timezone
 from datetime import timedelta
 from django.core.management import call_command
+from unittest.mock import patch
 import os
 
 User = get_user_model()
 
 class ContentTests(APITestCase):
     def setUp(self):
-        self.user = User.objects.create_user(username="testuser", email="test@ex.com", password="pass", is_verified=True)
+        self.user = User.objects.create_user(
+            username="testuser", email="test@ex.com", password="pass", 
+            is_verified=True, phone_number="+2347000000000"
+        )
         self.client.force_authenticate(user=self.user)
         self.category = Category.objects.create(name="Health")
         self.create_post_url = reverse('post-create')
         self.feed_url = reverse('post-feed')
 
-    def test_create_post(self):
+    @patch('cloudinary.uploader.upload')
+    def test_create_post(self, mock_upload):
+        mock_upload.return_value = {
+            'public_id': 'test_id',
+            'secure_url': 'http://example.com/test.jpg',
+            'format': 'jpg'
+        }
         image = SimpleUploadedFile("test.jpg", b"file_content", content_type="image/jpeg")
         data = {
             "category": self.category.id,
@@ -37,9 +47,15 @@ class ContentTests(APITestCase):
         Post.objects.create(author=self.user, category=self.category, caption="Hidden", is_media_deleted=True)
         
         response = self.client.get(self.feed_url)
-        self.assertEqual(len(response.data['results'] if 'results' in response.data else response.data), 1)
+        # Standardized renderer wraps list in 'data'
+        data_list = response.data['data'] if isinstance(response.data, dict) and 'data' in response.data else response.data
+        self.assertEqual(len(data_list), 1)
 
-    def test_delete_expired_media_command(self):
+    @patch('cloudinary.uploader.upload')
+    @patch('cloudinary.uploader.destroy')
+    def test_delete_expired_media_command(self, mock_destroy, mock_upload):
+        mock_upload.return_value = {'public_id': 'old', 'secure_url': 'http://ex.com/old.jpg'}
+        mock_destroy.return_value = {'result': 'ok'}
         # Create an old post
         old_post = Post.objects.create(
             author=self.user, 
@@ -56,9 +72,9 @@ class ContentTests(APITestCase):
         old_post.refresh_from_db()
         self.assertTrue(old_post.is_media_deleted)
         self.assertFalse(bool(old_post.media_file)) # Check if it's empty/None
-        # Note: In tests, the physical file might not be created depending on storage settings, 
-        # but the DB state change is the primary logic to verify.
+        
         # Check that we didn't delete a recent post
+        mock_upload.return_value = {'public_id': 'new', 'secure_url': 'http://ex.com/new.jpg'}
         recent_post = Post.objects.create(
             author=self.user, 
             category=self.category, 

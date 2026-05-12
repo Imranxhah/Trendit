@@ -7,7 +7,8 @@ class PostCreateView(generics.CreateAPIView):
     serializer_class = PostSerializer
     permission_classes = [permissions.IsAuthenticated]
 
-from django.db.models import Avg, Count, OuterRef, Subquery, Exists
+from django.db.models import Avg, Count, OuterRef, Subquery, Exists, Value
+from django.db.models.functions import Coalesce
 from .models import Post, Category, SubPost
 from .serializers import PostSerializer, CategorySerializer, SubPostSerializer
 from apps.social.models import Vote, Favorite
@@ -18,23 +19,10 @@ class TrendingFeedView(generics.ListAPIView):
 
     def get_queryset(self):
         user = self.request.user
-        queryset = Post.objects.filter(
+        return Post.objects.filter(
             status__in=['active', 'trending'],
             is_media_deleted=False
-        )
-
-        if user.is_authenticated:
-            user_vote = Vote.objects.filter(post=OuterRef('pk'), user=user).values('value')
-            queryset = queryset.annotate(
-                user_rating=Subquery(user_vote[:1]),
-                is_favorited=Exists(Favorite.objects.filter(post=OuterRef('pk'), user=user))
-            )
-
-        return queryset.annotate(
-            avg_rating=Avg('votes__value'),
-            vote_count=Count('votes'),
-            favorite_count=Count('favorited_by', distinct=True)
-        ).order_by('-avg_rating', '-vote_count', '-created_at')[:10]
+        ).with_annotations(user).order_by('-avg_rating', '-vote_count', '-created_at')[:10]
 
 class SubPostCreateView(generics.CreateAPIView):
     serializer_class = SubPostSerializer
@@ -49,21 +37,7 @@ class PostFeedView(generics.ListAPIView):
 
     def get_queryset(self):
         user = self.request.user
-        queryset = Post.objects.filter(is_media_deleted=False)
-
-        if user.is_authenticated:
-            user_vote = Vote.objects.filter(post=OuterRef('pk'), user=user).values('value')
-            queryset = queryset.annotate(
-                user_rating=Subquery(user_vote[:1]),
-                is_favorited=Exists(Favorite.objects.filter(post=OuterRef('pk'), user=user))
-            )
-
-        # Returns posts where is_media_deleted=False with ratings info
-        return queryset.annotate(
-            avg_rating=Avg('votes__value'),
-            vote_count=Count('votes'),
-            favorite_count=Count('favorited_by', distinct=True)
-        ).order_by('-created_at')
+        return Post.objects.filter(is_media_deleted=False).with_annotations(user).order_by('-created_at')
 
 class CategoryListView(generics.ListAPIView):
     queryset = Category.objects.all()
@@ -84,21 +58,8 @@ class UserPostListView(generics.ListAPIView):
     def get_queryset(self):
         user_id = self.kwargs.get('user_id')
         user = self.request.user
-        queryset = Post.objects.filter(author_id=user_id)
+        queryset = Post.objects.filter(author_id=user_id).with_annotations(user)
 
-        if user.is_authenticated:
-            user_vote = Vote.objects.filter(post=OuterRef('pk'), user=user).values('value')
-            queryset = queryset.annotate(
-                user_rating=Subquery(user_vote[:1]),
-                is_favorited=Exists(Favorite.objects.filter(post=OuterRef('pk'), user=user))
-            )
-        
-        queryset = queryset.annotate(
-            avg_rating=Avg('votes__value'),
-            vote_count=Count('votes'),
-            favorite_count=Count('favorited_by', distinct=True)
-        )
-        
         # If not the author, only show active/trending posts
         if not user.is_authenticated or user.id != int(user_id):
             queryset = queryset.filter(status__in=['active', 'trending'])
@@ -126,20 +87,7 @@ class PostDetailView(generics.RetrieveUpdateDestroyAPIView):
 
     def get_queryset(self):
         user = self.request.user
-        queryset = Post.objects.all()
-
-        if user.is_authenticated:
-            user_vote = Vote.objects.filter(post=OuterRef('pk'), user=user).values('value')
-            queryset = queryset.annotate(
-                user_rating=Subquery(user_vote[:1]),
-                is_favorited=Exists(Favorite.objects.filter(post=OuterRef('pk'), user=user))
-            )
-
-        return queryset.annotate(
-            avg_rating=Avg('votes__value'),
-            vote_count=Count('votes'),
-            favorite_count=Count('favorited_by', distinct=True)
-        )
+        return Post.objects.all().with_annotations(user)
 
     def perform_destroy(self, instance):
         # Delete from Cloudinary before deleting from DB

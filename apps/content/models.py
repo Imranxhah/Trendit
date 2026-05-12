@@ -4,6 +4,8 @@ from django.utils.text import slugify
 from django.core.exceptions import ValidationError
 from django.utils import timezone
 from apps.core.models import AppSettings
+from django.db.models import Avg, Count, OuterRef, Subquery, Exists, Value
+from django.db.models.functions import Coalesce
 
 class Category(models.Model):
     name = models.CharField(max_length=100)
@@ -19,6 +21,41 @@ class Category(models.Model):
 
     def __str__(self):
         return self.name
+
+class PostQuerySet(models.QuerySet):
+    def with_annotations(self, user=None):
+        from apps.social.models import Vote, Favorite
+        
+        votes_sq = Vote.objects.filter(post=OuterRef('pk'))
+        avg_rating_sq = votes_sq.values('post').annotate(a=Avg('value')).values('a')
+        vote_count_sq = votes_sq.values('post').annotate(c=Count('*')).values('c')
+        favorite_count_sq = Favorite.objects.filter(post=OuterRef('pk')).values('post').annotate(c=Count('*')).values('c')
+
+        queryset = self
+        if user and user.is_authenticated:
+            user_vote = Vote.objects.filter(post=OuterRef('pk'), user=user).values('value')
+            queryset = queryset.annotate(
+                user_rating=Subquery(user_vote[:1]),
+                is_favorited=Exists(Favorite.objects.filter(post=OuterRef('pk'), user=user))
+            )
+        else:
+            queryset = queryset.annotate(
+                user_rating=Value(None, output_field=models.IntegerField()),
+                is_favorited=Value(False, output_field=models.BooleanField())
+            )
+
+        return queryset.annotate(
+            avg_rating=Subquery(avg_rating_sq),
+            vote_count=Coalesce(Subquery(vote_count_sq), Value(0)),
+            favorite_count=Coalesce(Subquery(favorite_count_sq), Value(0))
+        )
+
+class PostManager(models.Manager):
+    def get_queryset(self):
+        return PostQuerySet(self.model, using=self._db)
+
+    def with_annotations(self, user=None):
+        return self.get_queryset().with_annotations(user)
 
 class Post(models.Model):
     STATUS_CHOICES = (
@@ -37,6 +74,8 @@ class Post(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     is_media_deleted = models.BooleanField(default=False)
 
+    objects = PostManager()
+
     def clean(self):
         # 1. Enforce Upload Window
         settings_obj = AppSettings.objects.first()
@@ -45,11 +84,11 @@ class Post(models.Model):
             if not (settings_obj.upload_start_time <= now <= settings_obj.upload_end_time):
                 raise ValidationError(f"Uploads are only allowed between {settings_obj.upload_start_time} and {settings_obj.upload_end_time}.")
 
-        # 2. Basic Video/Image size validation (Proxy for 20s)
+        # 2. Basic Video/Image size validation (Proxy for 60s)
         if self.media_file:
-            # Assuming 20MB as a rough upper limit for 20s mobile video
-            if self.media_file.size > 20 * 1024 * 1024: 
-                raise ValidationError("Media file is too large. Videos must be 20 seconds or less.")
+            # Assuming 60MB as a rough upper limit for 60s mobile video
+            if self.media_file.size > 60 * 1024 * 1024: 
+                raise ValidationError("Media file is too large. Videos must be 60 seconds or less.")
 
     def save(self, *args, **kwargs):
         # In testing, we might not want to enforce time windows unless explicitly testing them.
@@ -77,6 +116,27 @@ class SubPost(models.Model):
     aspect_ratio = models.FloatField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     is_media_deleted = models.BooleanField(default=False)
+
+    def clean(self):
+        # 1. Enforce Upload Window
+        settings_obj = AppSettings.objects.first()
+        if settings_obj:
+            now = timezone.localtime().time()
+            if not (settings_obj.upload_start_time <= now <= settings_obj.upload_end_time):
+                raise ValidationError(f"Uploads are only allowed between {settings_obj.upload_start_time} and {settings_obj.upload_end_time}.")
+
+        # 2. Basic Video/Image size validation (Proxy for 60s)
+        if self.media_file:
+            # Assuming 60MB as a rough upper limit for 60s mobile video
+            if self.media_file.size > 60 * 1024 * 1024: 
+                raise ValidationError("Media file is too large. Videos must be 60 seconds or less.")
+
+    def save(self, *args, **kwargs):
+        try:
+            self.full_clean()
+        except ValidationError:
+            raise
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return f"Reply by {self.author.username} to Post {self.parent_post.id}"

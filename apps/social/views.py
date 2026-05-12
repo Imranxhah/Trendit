@@ -255,27 +255,42 @@ class PostApprovalCreateView(generics.CreateAPIView):
 
 # ─── Vote ─────────────────────────────────────────────────────────────────────
 
+from django.db import transaction
+
 class VoteCreateView(generics.CreateAPIView):
     """
     POST /api/social/vote/
     Body: { "post": <post_id>, "value": <1-5> }
     Records a rating for a post. If the user has already rated this post,
     the existing rating is updated to the new value.
+    Returns the full updated post object.
     """
     serializer_class = VoteSerializer
     permission_classes = [permissions.IsAuthenticated]
 
-    def perform_create(self, serializer):
-        post = serializer.validated_data['post']
-        user = self.request.user
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        post_obj = serializer.validated_data['post']
         value = serializer.validated_data['value']
+        user = request.user
 
-        # Use update_or_create to allow updating existing ratings
-        Vote.objects.update_or_create(
-            user=user,
-            post=post,
-            defaults={'value': value}
-        )
+        with transaction.atomic():
+            Vote.objects.update_or_create(
+                user=user,
+                post=post_obj,
+                defaults={'value': value}
+            )
+
+        # Return full updated post data to help frontend sync state (avg_rating, etc.)
+        updated_post = Post.objects.with_annotations(user).get(id=post_obj.id)
+        post_serializer = PostSerializer(updated_post, context={'request': request})
+        
+        data = post_serializer.data
+        data['message'] = "Vote recorded successfully."
+        
+        return Response(data, status=status.HTTP_201_CREATED)
 
 
 class FavoriteToggleView(APIView):
@@ -297,9 +312,20 @@ class FavoriteToggleView(APIView):
 
         if not created:
             favorite.delete()
-            return Response({"is_favorited": False, "message": "Removed from favorites."}, status=status.HTTP_200_OK)
+            msg = "Removed from favorites."
+            status_code = status.HTTP_200_OK
+        else:
+            msg = "Added to favorites."
+            status_code = status.HTTP_201_CREATED
 
-        return Response({"is_favorited": True, "message": "Added to favorites."}, status=status.HTTP_201_CREATED)
+        # Return full updated post data to help frontend sync state
+        updated_post = Post.objects.with_annotations(request.user).get(id=post.id)
+        serializer = PostSerializer(updated_post, context={'request': request})
+        
+        data = serializer.data
+        data['message'] = msg # For StandardizedJSONRenderer
+        
+        return Response(data, status=status_code)
 
 
 # ─── Unapproved Posts from Close Buddies ──────────────────────────────────────

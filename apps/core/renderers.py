@@ -17,14 +17,17 @@ class StandardizedJSONRenderer(JSONRenderer):
             message = "Action completed successfully."
             
             # If the view passed a custom message in the data, extract it
-            if isinstance(data, dict) and 'message' in data:
-                message = data.pop('message')
+            res_data = data
+            if isinstance(data, dict):
+                res_data = data.copy()
+                if 'message' in res_data:
+                    message = res_data.pop('message')
 
             data = {
                 "status": "success",
                 "code": status_code,
                 "message": message,
-                "data": data
+                "data": res_data
             }
 
         return super().render(data, accepted_media_type, renderer_context)
