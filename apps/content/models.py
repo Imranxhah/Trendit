@@ -6,6 +6,7 @@ from django.utils import timezone
 from apps.core.models import AppSettings
 from django.db.models import Avg, Count, OuterRef, Subquery, Exists, Value
 from django.db.models.functions import Coalesce
+from cloudinary.models import CloudinaryField
 
 class Category(models.Model):
     name = models.CharField(max_length=100)
@@ -67,9 +68,11 @@ class Post(models.Model):
 
     author = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='posts')
     category = models.ForeignKey(Category, on_delete=models.SET_NULL, null=True, related_name='posts')
-    media_file = models.FileField(upload_to='posts/', null=True, blank=True)
+    media_file = CloudinaryField('media', null=True, blank=True)
     caption = models.TextField()
     aspect_ratio = models.FloatField(null=True, blank=True)
+    duration = models.FloatField(null=True, blank=True, help_text="Duration in seconds")
+    size = models.PositiveBigIntegerField(null=True, blank=True, help_text="Size in bytes")
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
     created_at = models.DateTimeField(auto_now_add=True)
     is_media_deleted = models.BooleanField(default=False)
@@ -84,11 +87,14 @@ class Post(models.Model):
             if not (settings_obj.upload_start_time <= now <= settings_obj.upload_end_time):
                 raise ValidationError(f"Uploads are only allowed between {settings_obj.upload_start_time} and {settings_obj.upload_end_time}.")
 
-        # 2. Basic Video/Image size validation (Proxy for 60s)
-        if self.media_file:
-            # Assuming 60MB as a rough upper limit for 60s mobile video
-            if self.media_file.size > 60 * 1024 * 1024: 
-                raise ValidationError("Media file is too large. Videos must be 60 seconds or less.")
+        # 2. Metadata Validation (Client-provided)
+        if self.size:
+            if self.size > 60 * 1024 * 1024: 
+                raise ValidationError("Media file is too large. Videos must be 60MB or less.")
+        
+        if self.duration:
+            if self.duration > 60:
+                raise ValidationError("Video duration must be 60 seconds or less.")
 
     def save(self, *args, **kwargs):
         # In testing, we might not want to enforce time windows unless explicitly testing them.
@@ -111,9 +117,11 @@ class SubPost(models.Model):
     """
     parent_post = models.ForeignKey(Post, on_delete=models.CASCADE, related_name='sub_posts')
     author = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='sub_posts')
-    media_file = models.FileField(upload_to='subposts/', null=True, blank=True)
+    media_file = CloudinaryField('media', null=True, blank=True)
     caption = models.TextField(blank=True)
     aspect_ratio = models.FloatField(null=True, blank=True)
+    duration = models.FloatField(null=True, blank=True, help_text="Duration in seconds")
+    size = models.PositiveBigIntegerField(null=True, blank=True, help_text="Size in bytes")
     created_at = models.DateTimeField(auto_now_add=True)
     is_media_deleted = models.BooleanField(default=False)
 
@@ -125,11 +133,14 @@ class SubPost(models.Model):
             if not (settings_obj.upload_start_time <= now <= settings_obj.upload_end_time):
                 raise ValidationError(f"Uploads are only allowed between {settings_obj.upload_start_time} and {settings_obj.upload_end_time}.")
 
-        # 2. Basic Video/Image size validation (Proxy for 60s)
-        if self.media_file:
-            # Assuming 60MB as a rough upper limit for 60s mobile video
-            if self.media_file.size > 60 * 1024 * 1024: 
-                raise ValidationError("Media file is too large. Videos must be 60 seconds or less.")
+        # 2. Metadata Validation (Client-provided)
+        if self.size:
+            if self.size > 60 * 1024 * 1024: 
+                raise ValidationError("Media file is too large. Videos must be 60MB or less.")
+        
+        if self.duration:
+            if self.duration > 60:
+                raise ValidationError("Video duration must be 60 seconds or less.")
 
     def save(self, *args, **kwargs):
         try:

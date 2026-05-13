@@ -10,12 +10,13 @@ class CategorySerializer(serializers.ModelSerializer):
 class SubPostSerializer(serializers.ModelSerializer):
     author_username = serializers.ReadOnlyField(source='author.username')
     author_profile_picture = serializers.ImageField(source='author.profile_picture', read_only=True)
+    media_file = serializers.CharField(required=False, allow_null=True)
 
     class Meta:
         model = SubPost
         fields = [
             'id', 'parent_post', 'author', 'author_username', 'author_profile_picture', 
-            'media_file', 'caption', 'aspect_ratio', 'created_at'
+            'media_file', 'caption', 'aspect_ratio', 'duration', 'size', 'created_at'
         ]
         read_only_fields = ['author', 'created_at']
 
@@ -29,14 +30,16 @@ class PostSerializer(serializers.ModelSerializer):
     favorite_count = serializers.IntegerField(read_only=True)
     is_favorited = serializers.BooleanField(read_only=True)
     sub_posts = SubPostSerializer(many=True, read_only=True)
+    media_file = serializers.CharField(required=False, allow_null=True)
 
     class Meta:
         model = Post
         fields = [
             'id', 'author', 'author_username', 'author_profile_picture', 
             'category', 'category_name', 'media_file', 'caption', 'aspect_ratio', 
-            'status', 'created_at', 'is_media_deleted', 'avg_rating', 
-            'vote_count', 'user_rating', 'favorite_count', 'is_favorited', 'sub_posts'
+            'duration', 'size', 'status', 'created_at', 'is_media_deleted', 
+            'avg_rating', 'vote_count', 'user_rating', 'favorite_count', 
+            'is_favorited', 'sub_posts'
         ]
         read_only_fields = ['author', 'created_at', 'status']
 

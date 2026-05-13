@@ -75,6 +75,38 @@ class IsAuthorOrReadOnly(permissions.BasePermission):
         return obj.author == request.user
 
 import cloudinary.uploader
+import time
+from django.conf import settings
+from rest_framework.views import APIView
+
+class CloudinarySignatureView(APIView):
+    """
+    POST /api/content/upload-signature/
+    Generates a signed upload request for direct client-to-Cloudinary uploads.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, *args, **kwargs):
+        timestamp = int(time.time())
+        # Parameters to include in the signature
+        params = {
+            'timestamp': timestamp,
+            'folder': 'posts', # You can adjust this based on request data if needed
+        }
+        
+        # Generate signature using the Cloudinary SDK
+        signature = cloudinary.utils.api_sign_request(
+            params, 
+            settings.CLOUDINARY_STORAGE['API_SECRET']
+        )
+        
+        return Response({
+            'signature': signature,
+            'timestamp': timestamp,
+            'api_key': settings.CLOUDINARY_STORAGE['API_KEY'],
+            'cloud_name': settings.CLOUDINARY_STORAGE['CLOUD_NAME'],
+            'folder': params['folder']
+        })
 
 class PostDetailView(generics.RetrieveUpdateDestroyAPIView):
     """
