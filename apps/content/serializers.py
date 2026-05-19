@@ -10,7 +10,7 @@ class CategorySerializer(serializers.ModelSerializer):
 class SubPostSerializer(serializers.ModelSerializer):
     author_username = serializers.ReadOnlyField(source='author.username')
     author_profile_picture = serializers.ImageField(source='author.profile_picture', read_only=True)
-    media_file = serializers.CharField(required=False, allow_null=True)
+    media_file = serializers.SerializerMethodField()
 
     class Meta:
         model = SubPost
@@ -19,6 +19,19 @@ class SubPostSerializer(serializers.ModelSerializer):
             'media_file', 'caption', 'aspect_ratio', 'duration', 'size', 'created_at'
         ]
         read_only_fields = ['author', 'created_at']
+
+    def get_media_file(self, obj):
+        if not obj.media_file:
+            return None
+        # CloudinaryField returns a CloudinaryResource.
+        # We try to get its string representation safely.
+        try:
+            val = str(obj.media_file)
+            if val is None:
+                return getattr(obj.media_file, 'public_id', None)
+            return val
+        except Exception:
+            return getattr(obj.media_file, 'public_id', None)
 
 class PostSerializer(serializers.ModelSerializer):
     author_username = serializers.ReadOnlyField(source='author.username')
@@ -30,7 +43,7 @@ class PostSerializer(serializers.ModelSerializer):
     favorite_count = serializers.IntegerField(read_only=True)
     is_favorited = serializers.BooleanField(read_only=True)
     sub_posts = SubPostSerializer(many=True, read_only=True)
-    media_file = serializers.CharField(required=False, allow_null=True)
+    media_file = serializers.SerializerMethodField()
 
     class Meta:
         model = Post
@@ -42,6 +55,17 @@ class PostSerializer(serializers.ModelSerializer):
             'is_favorited', 'sub_posts'
         ]
         read_only_fields = ['author', 'created_at', 'status']
+
+    def get_media_file(self, obj):
+        if not obj.media_file:
+            return None
+        try:
+            val = str(obj.media_file)
+            if val is None:
+                return getattr(obj.media_file, 'public_id', None)
+            return val
+        except Exception:
+            return getattr(obj.media_file, 'public_id', None)
 
     def create(self, validated_data):
         validated_data['author'] = self.context['request'].user

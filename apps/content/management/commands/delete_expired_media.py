@@ -18,8 +18,18 @@ class Command(BaseCommand):
         if not file_field:
             return False
 
-        # django-cloudinary-storage stores the public_id as the file name
-        public_id = file_field.name
+        # CloudinaryField returns a CloudinaryResource.
+        # It might not have a .name attribute like a standard Django FileField.
+        # We use getattr to safely get public_id, or fall back to str() representation.
+        public_id = getattr(file_field, 'public_id', None)
+        if not public_id:
+            try:
+                public_id = str(file_field)
+            except Exception:
+                return False
+        
+        if not public_id:
+            return False
 
         # Strip known extensions so Cloudinary matches the resource correctly
         for ext in ['.mp4', '.mov', '.avi', '.jpg', '.jpeg', '.png', '.gif', '.webp']:
@@ -29,8 +39,8 @@ class Command(BaseCommand):
 
         # Determine resource type
         video_exts = ('.mp4', '.mov', '.avi', '.mkv', '.webm')
-        original_name = file_field.name.lower()
-        resource_type = 'video' if any(original_name.endswith(e) for e in video_exts) else 'image'
+        media_name = getattr(file_field, 'name', str(file_field) or "")
+        resource_type = 'video' if any(media_name.lower().endswith(e) for e in video_exts) else 'image'
 
         try:
             result = cloudinary.uploader.destroy(public_id, resource_type=resource_type)

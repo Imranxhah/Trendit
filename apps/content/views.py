@@ -124,20 +124,30 @@ class PostDetailView(generics.RetrieveUpdateDestroyAPIView):
     def perform_destroy(self, instance):
         # Delete from Cloudinary before deleting from DB
         if instance.media_file and not instance.is_media_deleted:
-            public_id = instance.media_file.name
-            # Basic cleanup logic for Cloudinary public_id
-            for ext in ['.mp4', '.mov', '.avi', '.mkv', '.webm', '.jpg', '.jpeg', '.png', '.gif', '.webp']:
-                if public_id.lower().endswith(ext):
-                    public_id = public_id[:-(len(ext))]
-                    break
+            # CloudinaryField returns a CloudinaryResource.
+            # It might not have a .name attribute like a standard Django FileField.
+            public_id = getattr(instance.media_file, 'public_id', None)
+            if not public_id:
+                try:
+                    public_id = str(instance.media_file)
+                except Exception:
+                    public_id = None
             
-            # Determine resource type
-            video_exts = ('.mp4', '.mov', '.avi', '.mkv', '.webm')
-            resource_type = 'video' if any(instance.media_file.name.lower().endswith(e) for e in video_exts) else 'image'
-            
-            try:
-                cloudinary.uploader.destroy(public_id, resource_type=resource_type)
-            except Exception:
-                pass # Silently fail if Cloudinary deletion fails
+            if public_id:
+                # Basic cleanup logic for Cloudinary public_id
+                for ext in ['.mp4', '.mov', '.avi', '.mkv', '.webm', '.jpg', '.jpeg', '.png', '.gif', '.webp']:
+                    if public_id.lower().endswith(ext):
+                        public_id = public_id[:-(len(ext))]
+                        break
+                
+                # Determine resource type
+                video_exts = ('.mp4', '.mov', '.avi', '.mkv', '.webm')
+                media_name = getattr(instance.media_file, 'name', str(instance.media_file) or "")
+                resource_type = 'video' if any(media_name.lower().endswith(e) for e in video_exts) else 'image'
+                
+                try:
+                    cloudinary.uploader.destroy(public_id, resource_type=resource_type)
+                except Exception:
+                    pass # Silently fail if Cloudinary deletion fails
         
         instance.delete()

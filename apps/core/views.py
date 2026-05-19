@@ -50,9 +50,22 @@ class CleanupExpiredMediaView(APIView):
 
 
     def _delete_cloudinary_file(self, file_field):
-        if not file_field or not file_field.name:
+        if not file_field:
             return False
-        public_id = file_field.name
+        
+        # CloudinaryField returns a CloudinaryResource.
+        # It might not have a .name attribute like a standard Django FileField.
+        # We use getattr to safely get public_id, or fall back to str() representation.
+        public_id = getattr(file_field, 'public_id', None)
+        if not public_id:
+            try:
+                public_id = str(file_field)
+            except Exception:
+                return False
+        
+        if not public_id:
+            return False
+
         video_exts = ('.mp4', '.mov', '.avi', '.mkv', '.webm')
         original_name = public_id.lower()
         for ext in ['.mp4', '.mov', '.avi', '.mkv', '.webm', '.jpg', '.jpeg', '.png', '.gif', '.webp']:
