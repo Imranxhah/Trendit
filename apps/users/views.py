@@ -11,7 +11,8 @@ from .serializers import (
     OTPVerifySerializer, 
     UserProfileSerializer,
     ForgotPasswordRequestSerializer,
-    ForgotPasswordResetSerializer
+    ForgotPasswordResetSerializer,
+    UserProfileDetailSerializer
 )
 from .utils import send_otp_email
 
@@ -22,6 +23,14 @@ class UserProfileView(generics.RetrieveUpdateAPIView):
 
     def get_object(self):
         return self.request.user
+
+
+class UserProfileDetailView(generics.RetrieveAPIView):
+    queryset = User.objects.filter(is_active=True)
+    serializer_class = UserProfileDetailSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    lookup_field = 'id'
+    lookup_url_kwarg = 'user_id'
 
 
 class RegisterView(generics.CreateAPIView):

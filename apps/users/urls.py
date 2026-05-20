@@ -1,7 +1,7 @@
 from django.urls import path
 from rest_framework_simplejwt.views import TokenRefreshView
 from .views import (
-    RegisterView, VerifyOTPView, UserProfileView, 
+    RegisterView, VerifyOTPView, UserProfileView, UserProfileDetailView,
     BanUserView, UnbanUserView, ForgotPasswordRequestView, ForgotPasswordResetView
 )
 from .serializers import CustomTokenObtainPairSerializer
@@ -19,6 +19,7 @@ urlpatterns = [
     path('login/', CustomTokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('profile/', UserProfileView.as_view(), name='user-profile'),
+    path('profile/<int:user_id>/', UserProfileDetailView.as_view(), name='user-profile-detail'),
     path('search/', UserSearchView.as_view(), name='user-search'),
 
     # Forgot password

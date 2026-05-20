@@ -162,3 +162,91 @@ class ForgotPasswordResetSerializer(serializers.Serializer):
     email = serializers.EmailField()
     otp_code = serializers.CharField(max_length=6)
     new_password = serializers.CharField(write_only=True, min_length=6)
+
+
+class UserProfileDetailSerializer(serializers.ModelSerializer):
+    profile_picture = serializers.SerializerMethodField()
+    followers_count = serializers.SerializerMethodField()
+    following_count = serializers.SerializerMethodField()
+    buddies_count = serializers.SerializerMethodField()
+    total_posts = serializers.SerializerMethodField()
+    is_following = serializers.SerializerMethodField()
+    is_followed_by = serializers.SerializerMethodField()
+    is_buddy = serializers.SerializerMethodField()
+    is_close_buddy = serializers.SerializerMethodField()
+    close_buddy_request_status = serializers.SerializerMethodField()
+
+    class Meta:
+        model = User
+        fields = [
+            'id', 'username', 'first_name', 'last_name', 'profile_picture',
+            'followers_count', 'following_count', 'buddies_count', 'total_posts',
+            'is_following', 'is_followed_by', 'is_buddy', 'is_close_buddy', 'close_buddy_request_status'
+        ]
+
+    def get_profile_picture(self, obj):
+        if obj.profile_picture:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.profile_picture.url)
+            return obj.profile_picture.url
+        return None
+
+    def get_followers_count(self, obj):
+        return obj.followers.count()
+
+    def get_following_count(self, obj):
+        return obj.following.count()
+
+    def get_buddies_count(self, obj):
+        from django.db.models import Q
+        from apps.social.models import Buddy
+        return Buddy.objects.filter(Q(user1=obj) | Q(user2=obj)).count()
+
+    def get_total_posts(self, obj):
+        return obj.posts.filter(is_media_deleted=False).count()
+
+    def get_is_following(self, obj):
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            from apps.social.models import Follow
+            return Follow.objects.filter(follower=request.user, following=obj).exists()
+        return False
+
+    def get_is_followed_by(self, obj):
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            from apps.social.models import Follow
+            return Follow.objects.filter(follower=obj, following=request.user).exists()
+        return False
+
+    def get_is_buddy(self, obj):
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            from apps.social.models import Buddy
+            u1, u2 = sorted([request.user.id, obj.id])
+            return Buddy.objects.filter(user1_id=u1, user2_id=u2).exists()
+        return False
+
+    def get_is_close_buddy(self, obj):
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            from apps.social.models import CloseBuddy
+            return CloseBuddy.objects.filter(user=request.user, buddy=obj).exists()
+        return False
+
+    def get_close_buddy_request_status(self, obj):
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            from apps.social.models import CloseBuddyRequest
+            # Check sent request
+            req_sent = CloseBuddyRequest.objects.filter(sender=request.user, receiver=obj).first()
+            if req_sent:
+                return f"sent_{req_sent.status}" # sent_pending, sent_accepted, sent_rejected
+            
+            # Check received request
+            req_received = CloseBuddyRequest.objects.filter(sender=obj, receiver=request.user).first()
+            if req_received:
+                return f"received_{req_received.status}" # received_pending, received_accepted, received_rejected
+        return None
+

@@ -61,11 +61,39 @@ This document provides a comprehensive detail of each endpoint provided by the T
 *   **Auth Required:** Yes
 *   **Description:** Retrieves or updates the current user's profile.
 *   **Input Data (PUT/PATCH JSON):**
-    *   `username` (string, optional)
-    *   `phone_number` (string, optional)
+*   `username` (string, optional)
+*   `phone_number` (string, optional)
 *   **Success Response:**
     *   **Status Code:** `200 OK`
     *   **Data:** `{"username": "...", "phone_number": "...", "email": "..."}`
+
+### View other User Profile
+*   **URL:** `/api/users/profile/<int:user_id>/`
+*   **Method:** `GET`
+*   **Auth Required:** Yes
+*   **Description:** Retrieves detailed profile information for a specific user, including followers/following/buddy counts and the current user's relationship status with them.
+*   **Success Response:**
+    *   **Status Code:** `200 OK`
+    *   **Data:**
+        ```json
+        {
+          "id": 2,
+          "username": "other_user",
+          "email": "other@example.com",
+          "first_name": "John",
+          "last_name": "Doe",
+          "profile_picture": "http://...",
+          "followers_count": 10,
+          "following_count": 5,
+          "buddies_count": 3,
+          "total_posts": 12,
+          "is_following": true,
+          "is_followed_by": false,
+          "is_buddy": false,
+          "is_close_buddy": false,
+          "close_buddy_request_status": "sent_pending"
+        }
+        ```
 
 ### User Search
 *   **URL:** `/api/users/search/`
@@ -76,7 +104,7 @@ This document provides a comprehensive detail of each endpoint provided by the T
     *   `q` (string, required): Search query.
 *   **Success Response:**
     *   **Status Code:** `200 OK`
-    *   **Data:** List of user objects (id, username, email).
+    *   **Data:** List of user objects (id, username, email, first_name, last_name, profile_picture).
 
 ### Forgot Password Request
 *   **URL:** `/api/users/forgot-password/`
@@ -186,16 +214,22 @@ This document provides a comprehensive detail of each endpoint provided by the T
     *   `user_id` (integer, required): ID of the target user.
 
 ### List Following
-*   **URL:** `/api/social/following/`
+*   **URL:** `/api/social/following/` or `/api/social/following/<int:user_id>/`
 *   **Method:** `GET`
 *   **Auth Required:** Yes
-*   **Description:** Lists users you are following.
+*   **Description:** Lists users followed by you (or followed by the specified `user_id`).
+*   **Success Response:**
+    *   **Status Code:** `200 OK`
+    *   **Data:** List of user minimal objects (`id`, `username`, `email`, `first_name`, `last_name`, `profile_picture`).
 
 ### List Followers
-*   **URL:** `/api/social/followers/`
+*   **URL:** `/api/social/followers/` or `/api/social/followers/<int:user_id>/`
 *   **Method:** `GET`
 *   **Auth Required:** Yes
-*   **Description:** Lists users following you.
+*   **Description:** Lists users following you (or following the specified `user_id`).
+*   **Success Response:**
+    *   **Status Code:** `200 OK`
+    *   **Data:** List of user minimal objects (`id`, `username`, `email`, `first_name`, `last_name`, `profile_picture`).
 
 ### List Buddies (Mutual Follows)
 *   **URL:** `/api/social/buddies/`

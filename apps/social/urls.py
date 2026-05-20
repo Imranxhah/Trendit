@@ -24,7 +24,9 @@ urlpatterns = [
     # ── Follow (no permission needed) ────────────────────────────────────────
     path('follow/', FollowView.as_view(), name='follow'),
     path('following/', FollowingListView.as_view(), name='following-list'),
+    path('following/<int:user_id>/', FollowingListView.as_view(), name='user-following-list'),
     path('followers/', FollowersListView.as_view(), name='follower-list'),
+    path('followers/<int:user_id>/', FollowersListView.as_view(), name='user-follower-list'),
 
     # ── Buddy (Mutual Follows) ───────────────────────────────────────────────
     path('buddies/', BuddyListView.as_view(), name='buddy-list'),

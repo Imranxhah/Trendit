@@ -174,3 +174,60 @@ class BanFeatureTests(APITestCase):
         self.client.force_authenticate(user=self.admin_user)
         response = self.client.post(self.ban_url(superuser.pk), {}, format='json')
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+
+class UserProfileDetailTests(APITestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(
+            username="me", email="me@example.com", password="password", is_verified=True
+        )
+        self.other = User.objects.create_user(
+            username="other", email="other@example.com", password="password", is_verified=True
+        )
+        self.detail_url = lambda uid: reverse('user-profile-detail', args=[uid])
+
+    def test_unauthenticated_blocked(self):
+        response = self.client.get(self.detail_url(self.other.pk))
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_view_other_user_profile_detail_basic(self):
+        self.client.force_authenticate(user=self.user)
+        response = self.client.get(self.detail_url(self.other.pk))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        
+        # Check standard data wrapper
+        data = response.data
+        self.assertEqual(data['username'], "other")
+        self.assertEqual(data['followers_count'], 0)
+        self.assertEqual(data['following_count'], 0)
+        self.assertEqual(data['buddies_count'], 0)
+        self.assertEqual(data['total_posts'], 0)
+        self.assertFalse(data['is_following'])
+        self.assertFalse(data['is_followed_by'])
+        self.assertFalse(data['is_buddy'])
+        self.assertFalse(data['is_close_buddy'])
+        self.assertIsNone(data['close_buddy_request_status'])
+
+    def test_view_other_user_profile_detail_with_relations(self):
+        from apps.social.models import Follow, Buddy, CloseBuddyRequest
+        
+        # Establish mutual follows (Buddy)
+        Follow.objects.create(follower=self.user, following=self.other)
+        Follow.objects.create(follower=self.other, following=self.user)
+        
+        # Send Close Buddy Request
+        CloseBuddyRequest.objects.create(sender=self.user, receiver=self.other, status='pending')
+
+        self.client.force_authenticate(user=self.user)
+        response = self.client.get(self.detail_url(self.other.pk))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        
+        data = response.data
+        self.assertEqual(data['followers_count'], 1)
+        self.assertEqual(data['following_count'], 1)
+        self.assertEqual(data['buddies_count'], 1)
+        self.assertTrue(data['is_following'])
+        self.assertTrue(data['is_followed_by'])
+        self.assertTrue(data['is_buddy'])
+        self.assertEqual(data['close_buddy_request_status'], "sent_pending")
+

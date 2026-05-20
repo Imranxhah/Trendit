@@ -19,6 +19,7 @@
 4. [Profile & Search](#4-profile--search)
    - [GET/PATCH /users/profile/](#41-get--update-own-profile)
    - [GET /users/search/](#42-search-users)
+   - [GET /users/profile/<user_id>/](#43-view-other-user-profile)
 5. [Admin — User Banning](#5-admin--user-banning)
    - [POST /users/ban/<user_id>/](#51-ban-a-user)
    - [POST /users/unban/<user_id>/](#52-unban-a-user)
@@ -36,8 +37,8 @@
 7. [Social — Follow System](#7-social--follow-system)
    - [POST /social/follow/](#71-follow-a-user)
    - [DELETE /social/follow/](#72-unfollow-a-user)
-   - [GET /social/following/](#73-list-users-you-follow)
-   - [GET /social/followers/](#74-list-users-who-follow-you)
+   - [GET /social/following/ (or /following/<user_id>/)](#73-list-users-followed)
+   - [GET /social/followers/ (or /followers/<user_id>/)](#74-list-users-followers)
 8. [Social — Buddy System](#8-social--buddy-system)
    - [GET /social/buddies/](#81-list-mutual-buddies)
 9. [Social — Close Buddy (Inner Circle)](#9-social--close-buddy-inner-circle)
@@ -457,6 +458,7 @@ Each object in the array:
 | `email` | string | |
 | `first_name` | string | |
 | `last_name` | string | |
+| `profile_picture` | string \| null | URL of the profile picture, or `null`. |
 
 **Edge Cases:**
 
@@ -465,6 +467,35 @@ Each object in the array:
 - Only returns **active** users (`is_active=True`).
 - Maximum **30 results** are returned.
 - Ordering: alphabetical by `username`.
+
+---
+
+### 4.3 View other User Profile
+
+**`GET /api/users/profile/<int:user_id>/`**
+
+Retrieves detailed profile information for a specific user, including followers/following/buddy counts and relationship statuses with the authenticated user.
+
+**Authentication Required:** Yes
+
+**Success Response — `200 OK` (`data` object):**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | int | Target user ID. |
+| `username` | string | |
+| `first_name` | string | |
+| `last_name` | string | |
+| `profile_picture` | string \| null | URL to the user's profile picture or `null`. |
+| `followers_count` | int | Count of followers of the user. |
+| `following_count` | int | Count of users the user is following. |
+| `buddies_count` | int | Count of mutual buddies of the user. |
+| `total_posts` | int | Total number of published posts by the user. |
+| `is_following` | boolean | `true` if the authenticated user follows this user. |
+| `is_followed_by` | boolean | `true` if this user follows the authenticated user. |
+| `is_buddy` | boolean | `true` if they are mutual buddies. |
+| `is_close_buddy` | boolean | `true` if this user is in the authenticated user's inner circle. |
+| `close_buddy_request_status` | string \| null | Close buddy request status if any exists between them. Format: `sent_pending`, `received_pending`, `sent_accepted`, etc. or `null`. |
 
 ---
 
@@ -959,11 +990,12 @@ Unfollows a target user. If a Buddy relationship existed, it is **automatically 
 
 ---
 
-### 7.3 List Users You Follow
+### 7.3 List Users Followed
 
 **`GET /api/social/following/`**
+**`GET /api/social/following/<int:user_id>/`**
 
-Returns the list of users that the **authenticated user** is following.
+Returns the list of users followed by the **authenticated user** (if no `user_id` is supplied) or by the user specified by `user_id`.
 
 **Authentication Required:** Yes
 
@@ -976,22 +1008,24 @@ Returns the list of users that the **authenticated user** is following.
 | `email` | string | |
 | `first_name` | string | |
 | `last_name` | string | |
+| `profile_picture` | string \| null | URL of the profile picture, or `null`. |
 
 Ordered alphabetically by `username`.
 
 ---
 
-### 7.4 List Users Who Follow You
+### 7.4 List Users' Followers
 
 **`GET /api/social/followers/`**
+**`GET /api/social/followers/<int:user_id>/`**
 
-Returns the list of users who are following the **authenticated user**.
+Returns the list of users who are following the **authenticated user** (if no `user_id` is supplied) or the user specified by `user_id`.
 
 **Authentication Required:** Yes
 
 **Success Response — `200 OK` (`data` is an array of UserMinimal objects)**
 
-Same schema as [7.3](#73-list-users-you-follow). Ordered alphabetically by `username`.
+Same schema as [7.3](#73-list-users-followed). Ordered alphabetically by `username`.
 
 ---
 

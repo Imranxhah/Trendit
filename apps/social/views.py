@@ -58,26 +58,32 @@ class FollowView(APIView):
 class FollowingListView(generics.ListAPIView):
     """
     GET /api/social/following/          → list of users YOU are following
+    GET /api/social/following/<user_id>/ → list of users target user is following
     """
     serializer_class = UserMinimalSerializer
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
+        user_id = self.kwargs.get('user_id')
+        target_user = self.request.user if user_id is None else get_object_or_404(User, id=user_id)
         return User.objects.filter(
-            followers__follower=self.request.user
+            followers__follower=target_user
         ).order_by('username')
 
 
 class FollowersListView(generics.ListAPIView):
     """
     GET /api/social/followers/        → list of users who are following YOU
+    GET /api/social/followers/<user_id>/ → list of users who are following target user
     """
     serializer_class = UserMinimalSerializer
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
+        user_id = self.kwargs.get('user_id')
+        target_user = self.request.user if user_id is None else get_object_or_404(User, id=user_id)
         return User.objects.filter(
-            following__following=self.request.user
+            following__following=target_user
         ).order_by('username')
 
 

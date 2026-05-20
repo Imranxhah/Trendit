@@ -82,3 +82,43 @@ class SocialTests(APITestCase):
         response = self.client.post(url, {"post": my_post.id})
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertTrue(PostApproval.objects.filter(post=my_post, buddy=self.other_user).exists())
+
+
+class SocialListTests(APITestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(
+            username="me", email="me@ex.com", password="pass", 
+            is_verified=True, phone_number="+2348000000000"
+        )
+        self.other = User.objects.create_user(
+            username="other", email="other@ex.com", password="pass", 
+            is_verified=True, phone_number="+2348000000001"
+        )
+        self.third = User.objects.create_user(
+            username="third", email="third@ex.com", password="pass", 
+            is_verified=True, phone_number="+2348000000002"
+        )
+        self.client.force_authenticate(user=self.user)
+        
+        # Follow relations:
+        # other follows third
+        Follow.objects.create(follower=self.other, following=self.third)
+        # third follows other
+        Follow.objects.create(follower=self.third, following=self.other)
+
+    def test_get_other_user_following_list(self):
+        url = reverse('user-following-list', args=[self.other.pk])
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        # other follows third
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]['id'], self.third.pk)
+
+    def test_get_other_user_followers_list(self):
+        url = reverse('user-follower-list', args=[self.other.pk])
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        # third follows other
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]['id'], self.third.pk)
+
