@@ -85,3 +85,4 @@ class ContentTests(APITestCase):
         recent_post.refresh_from_db()
         self.assertFalse(recent_post.is_media_deleted)
         self.assertIsNotNone(recent_post.media_file.name)
+

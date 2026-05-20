@@ -33,6 +33,18 @@ class SubPostSerializer(serializers.ModelSerializer):
         except Exception:
             return getattr(obj.media_file, 'public_id', None)
 
+    def create(self, validated_data):
+        media_file = self.initial_data.get('media_file')
+        if media_file:
+            validated_data['media_file'] = media_file
+        return super().create(validated_data)
+
+    def update(self, instance, validated_data):
+        media_file = self.initial_data.get('media_file')
+        if media_file is not None:
+            instance.media_file = media_file
+        return super().update(instance, validated_data)
+
 class PostSerializer(serializers.ModelSerializer):
     author_username = serializers.ReadOnlyField(source='author.username')
     author_profile_picture = serializers.ImageField(source='author.profile_picture', read_only=True)
@@ -69,9 +81,18 @@ class PostSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         validated_data['author'] = self.context['request'].user
+        media_file = self.initial_data.get('media_file')
+        if media_file:
+            validated_data['media_file'] = media_file
         try:
             return super().create(validated_data)
         except DjangoValidationError as e:
             if hasattr(e, 'message_dict') and e.message_dict:
                 raise serializers.ValidationError(e.message_dict)
             raise serializers.ValidationError({'detail': e.messages})
+
+    def update(self, instance, validated_data):
+        media_file = self.initial_data.get('media_file')
+        if media_file is not None:
+            instance.media_file = media_file
+        return super().update(instance, validated_data)
