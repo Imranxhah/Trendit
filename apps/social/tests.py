@@ -83,6 +83,51 @@ class SocialTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertTrue(PostApproval.objects.filter(post=my_post, buddy=self.other_user).exists())
 
+    def test_duplicate_close_buddy_request_pending(self):
+        self.make_mutual_buddies(self.user, self.other_user)
+        url = reverse('close-buddy-request-send')
+        
+        # Send first request
+        response = self.client.post(url, {"receiver": self.other_user.id})
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        
+        # Send duplicate request while pending
+        response = self.client.post(url, {"receiver": self.other_user.id})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("You already have a pending request to this user.", str(response.data))
+
+    def test_duplicate_close_buddy_request_accepted(self):
+        self.make_mutual_buddies(self.user, self.other_user)
+        # Create request and set accepted
+        req = CloseBuddyRequest.objects.create(sender=self.user, receiver=self.other_user, status='accepted')
+        CloseBuddy.objects.create(user=self.user, buddy=self.other_user)
+
+        url = reverse('close-buddy-request-send')
+        response = self.client.post(url, {"receiver": self.other_user.id})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("This user is already in your inner circle.", str(response.data))
+
+    def test_duplicate_close_buddy_request_rejected(self):
+        self.make_mutual_buddies(self.user, self.other_user)
+        # Create request and set rejected
+        CloseBuddyRequest.objects.create(sender=self.user, receiver=self.other_user, status='rejected')
+
+        url = reverse('close-buddy-request-send')
+        response = self.client.post(url, {"receiver": self.other_user.id})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("A close buddy request has already been sent to this user.", str(response.data))
+
+    def test_reverse_pending_close_buddy_request(self):
+        self.make_mutual_buddies(self.user, self.other_user)
+        # Create a pending request from other_user to user
+        CloseBuddyRequest.objects.create(sender=self.other_user, receiver=self.user, status='pending')
+
+        # Now current user attempts to send request to other_user
+        url = reverse('close-buddy-request-send')
+        response = self.client.post(url, {"receiver": self.other_user.id})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("This user has already sent you a close buddy request.", str(response.data))
+
 
 class SocialListTests(APITestCase):
     def setUp(self):

@@ -58,8 +58,20 @@ class CloseBuddyRequestSerializer(serializers.ModelSerializer):
         if not Buddy.objects.filter(user1_id=u1, user2_id=u2).exists():
             raise serializers.ValidationError("You can only send close buddy requests to mutual buddies.")
 
-        if CloseBuddyRequest.objects.filter(sender=user, receiver=receiver, status='pending').exists():
-            raise serializers.ValidationError("You already have a pending request to this user.")
+        # Check existing requests (regardless of status) to avoid database IntegrityError due to UNIQUE constraint
+        existing_request = CloseBuddyRequest.objects.filter(sender=user, receiver=receiver).first()
+        if existing_request:
+            if existing_request.status == 'pending':
+                raise serializers.ValidationError("You already have a pending request to this user.")
+            elif existing_request.status == 'accepted':
+                raise serializers.ValidationError("This user is already in your inner circle.")
+            else:
+                raise serializers.ValidationError("A close buddy request has already been sent to this user.")
+
+        # Check for reverse pending request (receiver has already requested sender)
+        reverse_request = CloseBuddyRequest.objects.filter(sender=receiver, receiver=user, status='pending').exists()
+        if reverse_request:
+            raise serializers.ValidationError("This user has already sent you a close buddy request.")
 
         if CloseBuddy.objects.filter(user=user, buddy=receiver).exists():
             raise serializers.ValidationError("This user is already in your inner circle.")
