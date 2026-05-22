@@ -2,7 +2,8 @@ from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
 from django.contrib.auth import get_user_model
-from .models import OTPVerification
+from .models import OTPVerification, UserViolation
+
 from django.utils import timezone
 from datetime import timedelta
 
@@ -230,4 +231,58 @@ class UserProfileDetailTests(APITestCase):
         self.assertTrue(data['is_followed_by'])
         self.assertTrue(data['is_buddy'])
         self.assertEqual(data['close_buddy_request_status'], "sent_pending")
+
+
+class UserViolationTests(APITestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(
+            username="violator",
+            email="violator@example.com",
+            password="password123",
+            is_verified=True
+        )
+        self.violation_url = reverse('record-violation')
+
+    def test_unauthenticated_blocked(self):
+        response = self.client.post(self.violation_url, {})
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_record_violations_up_to_ban(self):
+        self.client.force_authenticate(user=self.user)
+
+        # 1st violation
+        response = self.client.post(self.violation_url, {
+            "rule_broken": "No spamming",
+            "description": "User spammed the chat room."
+        })
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data['total_violations'], 1)
+        self.assertEqual(response.data['remaining_violations'], 2)
+        self.assertFalse(response.data['is_banned'])
+
+        self.user.refresh_from_db()
+        self.assertFalse(self.user.is_banned)
+
+        # 2nd violation
+        response = self.client.post(self.violation_url, {
+            "rule_broken": "Inappropriate language"
+        })
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data['total_violations'], 2)
+        self.assertEqual(response.data['remaining_violations'], 1)
+        self.assertFalse(response.data['is_banned'])
+
+        # 3rd violation - should trigger ban
+        response = self.client.post(self.violation_url, {
+            "rule_broken": "Harassment"
+        })
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data['total_violations'], 3)
+        self.assertEqual(response.data['remaining_violations'], 0)
+        self.assertTrue(response.data['is_banned'])
+
+        self.user.refresh_from_db()
+        self.assertTrue(self.user.is_banned)
+        self.assertIn("Harassment", self.user.ban_reason)
+
 

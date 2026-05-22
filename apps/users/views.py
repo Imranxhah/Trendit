@@ -5,7 +5,8 @@ from django.utils import timezone
 from datetime import timedelta
 from django.shortcuts import get_object_or_404
 import random
-from .models import User, OTPVerification
+from .models import User, OTPVerification, UserViolation
+
 from .serializers import (
     UserRegistrationSerializer, 
     OTPVerifySerializer, 
@@ -235,3 +236,46 @@ class UnbanUserView(APIView):
         return Response({
             "message": f"User '{user.username}' has been unbanned."
         }, status=status.HTTP_200_OK)
+
+
+class RecordViolationView(APIView):
+    """
+    POST /users/violations/
+    Records a user violation/strike sent from the client application.
+    Auto-bans the user if they reach 3 or more violations.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        user = request.user
+        
+        rule_broken = request.data.get('rule_broken', 'Client Rule Broken')
+        description = request.data.get('description', 'A rule was broken on the client application.')
+
+        # Record the violation
+        UserViolation.objects.create(
+            user=user,
+            rule_broken=rule_broken,
+            description=description
+        )
+
+        total_violations = user.violations.count()
+        limit = 3
+        remaining_violations = max(0, limit - total_violations)
+
+        if total_violations >= limit:
+            if not user.is_banned:
+                user.is_banned = True
+                user.ban_reason = f"Banned automatically: Exceeded violation limit ({total_violations}/{limit}). Last violation: {rule_broken}."
+                user.save(update_fields=['is_banned', 'ban_reason'])
+            message = f"Your account has been banned due to exceeding the maximum violation limit of {limit}."
+        else:
+            message = f"Violation recorded. Warning shown. You have {remaining_violations} remaining violation(s) before your account is banned."
+
+        return Response({
+            "message": message,
+            "total_violations": total_violations,
+            "remaining_violations": remaining_violations,
+            "is_banned": user.is_banned
+        }, status=status.HTTP_201_CREATED)
+

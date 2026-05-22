@@ -60,3 +60,17 @@ class UserDevice(models.Model):
     
     def __str__(self):
         return f"{self.user.username} - {self.device_id}"
+
+
+class UserViolation(models.Model):
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='violations')
+    rule_broken = models.CharField(max_length=255, blank=True, null=True)
+    description = models.TextField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.user.username} - {self.rule_broken or 'Violation'} - {self.created_at}"
+

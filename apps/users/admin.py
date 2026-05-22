@@ -2,7 +2,7 @@ from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.contrib import messages
 from unfold.admin import ModelAdmin
-from .models import User, Profile, UserDevice, OTPVerification
+from .models import User, Profile, UserDevice, OTPVerification, UserViolation
 
 
 # --- Custom Admin Actions ---
@@ -52,3 +52,11 @@ class UserDeviceAdmin(ModelAdmin):
 @admin.register(OTPVerification)
 class OTPVerificationAdmin(ModelAdmin):
     list_display = ('user', 'otp_code', 'expires_at', 'created_at')
+
+
+@admin.register(UserViolation)
+class UserViolationAdmin(ModelAdmin):
+    list_display = ('user', 'rule_broken', 'created_at')
+    list_filter = ('rule_broken', 'created_at')
+    search_fields = ('user__username', 'user__email', 'rule_broken', 'description')
+

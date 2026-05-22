@@ -2,7 +2,8 @@ from django.urls import path
 from rest_framework_simplejwt.views import TokenRefreshView
 from .views import (
     RegisterView, VerifyOTPView, UserProfileView, UserProfileDetailView,
-    BanUserView, UnbanUserView, ForgotPasswordRequestView, ForgotPasswordResetView
+    BanUserView, UnbanUserView, ForgotPasswordRequestView, ForgotPasswordResetView,
+    RecordViolationView
 )
 from .serializers import CustomTokenObtainPairSerializer
 from rest_framework_simplejwt.views import TokenObtainPairView
@@ -29,4 +30,7 @@ urlpatterns = [
     # Admin-only ban / unban
     path('ban/<int:user_id>/', BanUserView.as_view(), name='ban-user'),
     path('unban/<int:user_id>/', UnbanUserView.as_view(), name='unban-user'),
+    
+    # Violations / Strikes
+    path('violations/', RecordViolationView.as_view(), name='record-violation'),
 ]

@@ -16,6 +16,7 @@
    - [POST /users/token/refresh/](#34-refresh-access-token)
    - [POST /users/forgot-password/](#35-request-forgot-password-otp)
    - [POST /users/reset-password/](#36-reset-password-with-otp)
+   - [POST /users/violations/](#37-record-user-violation--strike)
 4. [Profile & Search](#4-profile--search)
    - [GET/PATCH /users/profile/](#41-get--update-own-profile)
    - [GET /users/search/](#42-search-users)
@@ -385,6 +386,64 @@ Verifies the password-reset OTP and sets the new password.
 - On success, the OTP is deleted from the database.
 - The password is properly hashed via Django's `set_password()`.
 - After reset, the user must log in again (no tokens are returned).
+
+---
+
+### 3.7 Record User Violation / Strike
+
+**`POST /api/users/violations/`**
+
+Records a user violation (strike) sent from the client application. If the user's total violations reach 3 or more, they are automatically banned and a reason is saved in their profile.
+
+**Authentication Required:** Yes
+
+**Request Body (JSON):**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `rule_broken` | string | ❌ No | The rule that was broken (default: `"Client Rule Broken"`). |
+| `description` | string | ❌ No | Additional context about the violation. |
+
+**Success Response — `201 Created` (`data` object):**
+
+```json
+{
+  "status": "success",
+  "code": 201,
+  "message": "Violation recorded. Warning shown. You have 2 remaining violation(s) before your account is banned.",
+  "data": {
+    "total_violations": 1,
+    "remaining_violations": 2,
+    "is_banned": false
+  }
+}
+```
+
+If the violation causes the user to be banned (e.g., reaching 3 violations):
+
+```json
+{
+  "status": "success",
+  "code": 201,
+  "message": "Your account has been banned due to exceeding the maximum violation limit of 3.",
+  "data": {
+    "total_violations": 3,
+    "remaining_violations": 0,
+    "is_banned": true
+  }
+}
+```
+
+**Error Responses:**
+
+| Condition | Status | `message` |
+|-----------|--------|-----------|
+| Not authenticated | 401 | "Your session has expired or you are not logged in." |
+
+**Edge Cases:**
+
+- Banned users cannot log in (login will return `401 Unauthorized` with `account_banned` detail).
+- If the user is already banned, subsequent violations will still be recorded and return `is_banned: true` and `remaining_violations: 0`.
 
 ---
 
