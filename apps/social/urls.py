@@ -9,6 +9,7 @@ from .views import (
     # Close Buddy Requests (permission-based)
     SendCloseBuddyRequestView, RespondCloseBuddyRequestView,
     IncomingCloseBuddyRequestsView, PendingSentCloseBuddyRequestsView,
+    RejectedCloseBuddyRequestsView, IgnoredCloseBuddyRequestsView,
 
     # Close Buddy (Inner Circle)
     CloseBuddyListView, RemoveCloseBuddyView,
@@ -35,6 +36,8 @@ urlpatterns = [
     path('close-buddies/request/', SendCloseBuddyRequestView.as_view(), name='close-buddy-request-send'),
     path('close-buddies/respond/', RespondCloseBuddyRequestView.as_view(), name='close-buddy-request-respond'),
     path('close-buddies/requests/', IncomingCloseBuddyRequestsView.as_view(), name='close-buddy-request-list'),
+    path('close-buddies/requests/rejected/', RejectedCloseBuddyRequestsView.as_view(), name='close-buddy-requests-rejected'),
+    path('close-buddies/requests/ignored/', IgnoredCloseBuddyRequestsView.as_view(), name='close-buddy-requests-ignored'),
     path('close-buddies/pending-sent/', PendingSentCloseBuddyRequestsView.as_view(), name='close-buddy-pending-sent'),
 
     # ── Close Buddy (Inner Circle) ────────────────────────────────────────────

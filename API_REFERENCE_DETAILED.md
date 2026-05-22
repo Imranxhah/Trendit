@@ -50,6 +50,8 @@
    - [GET /social/close-buddies/](#95-list-your-inner-circle)
    - [DELETE /social/close-buddies/remove/](#96-remove-someone-from-inner-circle)
    - [GET /social/close-buddies/unapproved-posts/](#97-list-unapproved-posts-from-your-close-buddies)
+   - [GET /social/close-buddies/requests/rejected/](#98-list-rejected-close-buddy-requests)
+   - [GET /social/close-buddies/requests/ignored/](#99-list-ignored-close-buddy-requests)
 10. [Social — Interactions](#10-social--interactions)
     - [POST /social/approve-post/](#101-approve-a-post)
     - [POST /social/vote/](#102-vote-on-a-post)
@@ -518,6 +520,11 @@ Each object in the array:
 | `first_name` | string | |
 | `last_name` | string | |
 | `profile_picture` | string \| null | URL of the profile picture, or `null`. |
+| `is_following` | boolean | `true` if the authenticated user follows this user. |
+| `is_followed_by` | boolean | `true` if this user follows the authenticated user. |
+| `is_buddy` | boolean | `true` if they are mutual buddies. |
+| `is_close_buddy` | boolean | `true` if this user is in the authenticated user's inner circle. |
+| `close_buddy_request_status` | string \| null | Close buddy request status between them. Format: `sent_<status>` (e.g. `sent_pending`, `sent_accepted`, `sent_rejected`, `sent_ignored`) or `received_<status>` (e.g. `received_pending`, `received_accepted`, `received_rejected`, `received_ignored`) or `null` if no request exists. |
 
 **Edge Cases:**
 
@@ -1165,11 +1172,11 @@ Accepts or rejects an incoming close buddy request. Only the **receiver** of the
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `request_id` | int | ✅ Yes | ID of the `CloseBuddyRequest` to respond to. |
-| `action` | string | ✅ Yes | One of: `"accepted"` or `"rejected"`. |
+| `action` | string | ✅ Yes | One of: `"accepted"`, `"rejected"`, or `"ignored"`. |
 
 **Success Response — `200 OK`:**
 
-`"message": "Close buddy request accepted."` or `"Close buddy request rejected."`
+`"message": "Close buddy request accepted."`, `"Close buddy request rejected."`, or `"Close buddy request ignored."`
 
 `"data"` is `{}`.
 
@@ -1177,13 +1184,17 @@ Accepts or rejects an incoming close buddy request. Only the **receiver** of the
 
 A `CloseBuddy` record is created: `user = sender`, `buddy = receiver (current user)`. This means the sender now has the receiver in *their* inner circle.
 
+**On Rejection or Ignore:**
+
+The request's `status` is updated to `"rejected"` or `"ignored"` respectively, and no close buddy relationship is created.
+
 **Error Responses:**
 
 | Condition | Status | `message` |
 |-----------|--------|-----------|
 | `request_id` not found, or already processed, or receiver is not current user | 404 | "The item you are looking for was not found." |
 | Sender's inner circle already full (5 close buddies) at time of acceptance | 400 | "Sender's inner circle is already full (max 5)." |
-| `action` is not `"accepted"` or `"rejected"` | 400 | Field validation error |
+| `action` is not `"accepted"`, `"rejected"`, or `"ignored"` | 400 | Field validation error |
 
 ---
 
@@ -1281,6 +1292,34 @@ Filters applied:
 - The current user must **not** have already approved the post.
 
 Ordered by `-created_at` (newest first).
+
+---
+
+### 9.8 List Rejected Close Buddy Requests
+
+**`GET /api/social/close-buddies/requests/rejected/`**
+
+Returns all close buddy requests sent **to** the authenticated user that have been **rejected**.
+
+**Authentication Required:** Yes
+
+**Success Response — `200 OK` (`data` is an array of CloseBuddyRequest objects)**
+
+Each object has the same schema as [9.1](#91-send-close-buddy-request). Ordered by `-created_at` (newest first).
+
+---
+
+### 9.9 List Ignored Close Buddy Requests
+
+**`GET /api/social/close-buddies/requests/ignored/`**
+
+Returns all close buddy requests sent **to** the authenticated user that have been **ignored**.
+
+**Authentication Required:** Yes
+
+**Success Response — `200 OK` (`data` is an array of CloseBuddyRequest objects)**
+
+Each object has the same schema as [9.1](#91-send-close-buddy-request). Ordered by `-created_at` (newest first).
 
 ---
 

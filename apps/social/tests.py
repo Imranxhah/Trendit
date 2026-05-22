@@ -128,6 +128,42 @@ class SocialTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("This user has already sent you a close buddy request.", str(response.data))
 
+    def test_reject_close_buddy_request(self):
+        self.make_mutual_buddies(self.user, self.other_user)
+        cbr = CloseBuddyRequest.objects.create(sender=self.other_user, receiver=self.user, status='pending')
+
+        # Respond with reject
+        url = reverse('close-buddy-request-respond')
+        response = self.client.post(url, {"request_id": cbr.id, "action": "rejected"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        cbr.refresh_from_db()
+        self.assertEqual(cbr.status, 'rejected')
+
+        # List rejected requests
+        list_url = reverse('close-buddy-requests-rejected')
+        list_response = self.client.get(list_url)
+        self.assertEqual(list_response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(list_response.data), 1)
+        self.assertEqual(list_response.data[0]['id'], cbr.id)
+
+    def test_ignore_close_buddy_request(self):
+        self.make_mutual_buddies(self.user, self.other_user)
+        cbr = CloseBuddyRequest.objects.create(sender=self.other_user, receiver=self.user, status='pending')
+
+        # Respond with ignore
+        url = reverse('close-buddy-request-respond')
+        response = self.client.post(url, {"request_id": cbr.id, "action": "ignored"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        cbr.refresh_from_db()
+        self.assertEqual(cbr.status, 'ignored')
+
+        # List ignored requests
+        list_url = reverse('close-buddy-requests-ignored')
+        list_response = self.client.get(list_url)
+        self.assertEqual(list_response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(list_response.data), 1)
+        self.assertEqual(list_response.data[0]['id'], cbr.id)
+
 
 class SocialListTests(APITestCase):
     def setUp(self):
@@ -166,4 +202,47 @@ class SocialListTests(APITestCase):
         # third follows other
         self.assertEqual(len(response.data), 1)
         self.assertEqual(response.data[0]['id'], self.third.pk)
+
+    def test_user_search_includes_relationships(self):
+        # 1. Establish relationships
+        # User 'me' follows 'other'
+        Follow.objects.create(follower=self.user, following=self.other)
+        # User 'me' sends a close buddy request to 'other'
+        CloseBuddyRequest.objects.create(sender=self.user, receiver=self.other, status='pending')
+
+        # User 'me' and 'third' follow each other (mutual buddies)
+        Follow.objects.create(follower=self.user, following=self.third)
+        Follow.objects.create(follower=self.third, following=self.user)
+        # Verify Buddy record was automatically created via signal
+        self.assertTrue(Buddy.objects.filter(user1_id=min(self.user.id, self.third.id), user2_id=max(self.user.id, self.third.id)).exists())
+        
+        # User 'me' adds 'third' as a close buddy
+        CloseBuddy.objects.create(user=self.user, buddy=self.third)
+
+        # 2. Search for 'other'
+        url = reverse('user-search') + "?q=other"
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        other_data = response.data[0]
+        self.assertEqual(other_data['id'], self.other.id)
+        self.assertTrue(other_data['is_following'])
+        self.assertFalse(other_data['is_followed_by'])
+        self.assertFalse(other_data['is_buddy'])
+        self.assertFalse(other_data['is_close_buddy'])
+        self.assertEqual(other_data['close_buddy_request_status'], 'sent_pending')
+
+        # 3. Search for 'third'
+        url = reverse('user-search') + "?q=third"
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        third_data = response.data[0]
+        self.assertEqual(third_data['id'], self.third.id)
+        self.assertTrue(third_data['is_following'])
+        self.assertTrue(third_data['is_followed_by'])
+        self.assertTrue(third_data['is_buddy'])
+        self.assertTrue(third_data['is_close_buddy'])
+        self.assertIsNone(third_data['close_buddy_request_status'])
+
 

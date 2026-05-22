@@ -53,6 +53,7 @@ class CloseBuddyRequest(models.Model):
         ('pending', 'Pending'),
         ('accepted', 'Accepted'),
         ('rejected', 'Rejected'),
+        ('ignored', 'Ignored'),
     )
 
     sender = models.ForeignKey(

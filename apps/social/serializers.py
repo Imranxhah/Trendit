@@ -84,7 +84,7 @@ class CloseBuddyRequestSerializer(serializers.ModelSerializer):
 
 class CloseBuddyRespondSerializer(serializers.Serializer):
     request_id = serializers.IntegerField()
-    action = serializers.ChoiceField(choices=['accepted', 'rejected'])
+    action = serializers.ChoiceField(choices=['accepted', 'rejected', 'ignored'])
 
 
 # ─── Close Buddy (Inner Circle) ───────────────────────────────────────────────
@@ -120,3 +120,66 @@ class FavoriteSerializer(serializers.ModelSerializer):
         model = Favorite
         fields = ['id', 'post', 'user', 'created_at']
         read_only_fields = ['user', 'created_at']
+
+
+class UserSearchSerializer(serializers.ModelSerializer):
+    profile_picture = serializers.SerializerMethodField()
+    is_following = serializers.SerializerMethodField()
+    is_followed_by = serializers.SerializerMethodField()
+    is_buddy = serializers.SerializerMethodField()
+    is_close_buddy = serializers.SerializerMethodField()
+    close_buddy_request_status = serializers.SerializerMethodField()
+
+    class Meta:
+        model = User
+        fields = [
+            'id', 'username', 'email', 'first_name', 'last_name', 'profile_picture',
+            'is_following', 'is_followed_by', 'is_buddy', 'is_close_buddy', 'close_buddy_request_status'
+        ]
+
+    def get_profile_picture(self, obj):
+        if obj.profile_picture:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.profile_picture.url)
+            return obj.profile_picture.url
+        return None
+
+    def get_is_following(self, obj):
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            return Follow.objects.filter(follower=request.user, following=obj).exists()
+        return False
+
+    def get_is_followed_by(self, obj):
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            return Follow.objects.filter(follower=obj, following=request.user).exists()
+        return False
+
+    def get_is_buddy(self, obj):
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            u1, u2 = sorted([request.user.id, obj.id])
+            return Buddy.objects.filter(user1_id=u1, user2_id=u2).exists()
+        return False
+
+    def get_is_close_buddy(self, obj):
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            return CloseBuddy.objects.filter(user=request.user, buddy=obj).exists()
+        return False
+
+    def get_close_buddy_request_status(self, obj):
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            # Check sent request
+            req_sent = CloseBuddyRequest.objects.filter(sender=request.user, receiver=obj).first()
+            if req_sent:
+                return f"sent_{req_sent.status}"
+            
+            # Check received request
+            req_received = CloseBuddyRequest.objects.filter(sender=obj, receiver=request.user).first()
+            if req_received:
+                return f"received_{req_received.status}"
+        return None

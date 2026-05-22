@@ -96,15 +96,26 @@ This document provides a comprehensive detail of each endpoint provided by the T
         ```
 
 ### User Search
-*   **URL:** `/api/users/search/`
+*   **URL:** `/api/users/search/` (Also accessible at `/api/social/users/search/`)
 *   **Method:** `GET`
 *   **Auth Required:** Yes
-*   **Description:** Search users by username, first name, or last name.
+*   **Description:** Search users by username, first name, or last name. Returns users along with detailed relationship status relative to the requesting user.
 *   **Query Parameters:**
     *   `q` (string, required): Search query.
 *   **Success Response:**
     *   **Status Code:** `200 OK`
-    *   **Data:** List of user objects (id, username, email, first_name, last_name, profile_picture).
+    *   **Data:** List of user search objects:
+        *   `id` (integer)
+        *   `username` (string)
+        *   `email` (string)
+        *   `first_name` (string)
+        *   `last_name` (string)
+        *   `profile_picture` (string | null)
+        *   `is_following` (boolean): `true` if the current user is following this user.
+        *   `is_followed_by` (boolean): `true` if this user is following the current user.
+        *   `is_buddy` (boolean): `true` if they are mutual buddies.
+        *   `is_close_buddy` (boolean): `true` if this user is in the current user's inner circle.
+        *   `close_buddy_request_status` (string | null): The state of close buddy requests between both users. Format: `sent_<status>` (e.g. `sent_pending`, `sent_accepted`, `sent_rejected`, `sent_ignored`) or `received_<status>` (e.g. `received_pending`, `received_accepted`, `received_rejected`, `received_ignored`) or `null`.
 
 ### Forgot Password Request
 *   **URL:** `/api/users/forgot-password/`
@@ -252,12 +263,24 @@ This document provides a comprehensive detail of each endpoint provided by the T
 *   **Auth Required:** Yes
 *   **Input Data (JSON):**
     *   `request_id` (integer, required)
-    *   `action` (string: "accepted" or "rejected", required)
+    *   `action` (string: "accepted", "rejected", or "ignored", required)
 
 ### List Incoming Close Buddy Requests
 *   **URL:** `/api/social/close-buddies/requests/`
 *   **Method:** `GET`
 *   **Auth Required:** Yes
+
+### List Rejected Close Buddy Requests
+*   **URL:** `/api/social/close-buddies/requests/rejected/`
+*   **Method:** `GET`
+*   **Auth Required:** Yes
+*   **Description:** Lists close buddy requests sent to you that you have rejected.
+
+### List Ignored Close Buddy Requests
+*   **URL:** `/api/social/close-buddies/requests/ignored/`
+*   **Method:** `GET`
+*   **Auth Required:** Yes
+*   **Description:** Lists close buddy requests sent to you that you have ignored.
 
 ### List Pending Sent Close Buddy Requests
 *   **URL:** `/api/social/close-buddies/pending-sent/`

@@ -8,7 +8,7 @@ from .serializers import (
     FollowSerializer, BuddySerializer,
     CloseBuddyRequestSerializer, CloseBuddyRespondSerializer,
     CloseBuddySerializer, PostApprovalSerializer, VoteSerializer,
-    FavoriteSerializer, UserMinimalSerializer
+    FavoriteSerializer, UserMinimalSerializer, UserSearchSerializer
 )
 from django.contrib.auth import get_user_model
 from apps.content.models import Post
@@ -365,7 +365,7 @@ class UserSearchView(generics.ListAPIView):
     GET /api/users/search/?q=<query>
     Search users by username, first_name, or last_name.
     """
-    serializer_class = UserMinimalSerializer
+    serializer_class = UserSearchSerializer
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
@@ -378,3 +378,31 @@ class UserSearchView(generics.ListAPIView):
             Q(last_name__icontains=query),
             is_active=True
         ).exclude(id=self.request.user.id).order_by('username')[:30]
+
+
+class RejectedCloseBuddyRequestsView(generics.ListAPIView):
+    """
+    GET /api/social/close-buddies/requests/rejected/
+    Returns all rejected close buddy requests sent TO the current user.
+    """
+    serializer_class = CloseBuddyRequestSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return CloseBuddyRequest.objects.filter(
+            receiver=self.request.user, status='rejected'
+        ).order_by('-created_at')
+
+
+class IgnoredCloseBuddyRequestsView(generics.ListAPIView):
+    """
+    GET /api/social/close-buddies/requests/ignored/
+    Returns all ignored close buddy requests sent TO the current user.
+    """
+    serializer_class = CloseBuddyRequestSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return CloseBuddyRequest.objects.filter(
+            receiver=self.request.user, status='ignored'
+        ).order_by('-created_at')
