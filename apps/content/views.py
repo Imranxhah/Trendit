@@ -125,6 +125,8 @@ class CloudinarySignatureView(APIView):
         params = {
             'timestamp': timestamp,
             'folder': 'posts', # You can adjust this based on request data if needed
+            'eager': 'sp_auto',
+            'eager_async': True,
         }
         
         # Generate signature using the Cloudinary SDK
@@ -138,7 +140,9 @@ class CloudinarySignatureView(APIView):
             'timestamp': timestamp,
             'api_key': settings.CLOUDINARY_STORAGE['API_KEY'],
             'cloud_name': settings.CLOUDINARY_STORAGE['CLOUD_NAME'],
-            'folder': params['folder']
+            'folder': params['folder'],
+            'eager': params['eager'],
+            'eager_async': params['eager_async'],
         })
 
 class PostDetailView(generics.RetrieveUpdateDestroyAPIView):

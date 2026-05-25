@@ -1,6 +1,40 @@
 from rest_framework import serializers
 from .models import Category, Post, SubPost
 from django.core.exceptions import ValidationError as DjangoValidationError
+import cloudinary
+
+def _generate_media_url(media_file):
+    if not media_file:
+        return None
+    try:
+        public_id = getattr(media_file, 'public_id', None)
+        if not public_id:
+            val = str(media_file)
+            if val:
+                public_id = val
+            else:
+                return None
+
+        video_exts = ('.mp4', '.mov', '.avi', '.mkv', '.webm')
+        is_video = any(public_id.lower().endswith(ext) for ext in video_exts)
+
+        if is_video:
+            base_public_id = public_id
+            for ext in video_exts:
+                if base_public_id.lower().endswith(ext):
+                    base_public_id = base_public_id[:-len(ext)]
+                    break
+            
+            return cloudinary.CloudinaryVideo(base_public_id).build_url(
+                secure=True, 
+                format='m3u8', 
+                streaming_profile='auto'
+            )
+        else:
+            return cloudinary.CloudinaryImage(public_id).build_url(secure=True)
+    except Exception:
+        return getattr(media_file, 'public_id', str(media_file))
+
 
 class CategorySerializer(serializers.ModelSerializer):
     class Meta:
@@ -21,17 +55,7 @@ class SubPostSerializer(serializers.ModelSerializer):
         read_only_fields = ['author', 'created_at']
 
     def get_media_file(self, obj):
-        if not obj.media_file:
-            return None
-        # CloudinaryField returns a CloudinaryResource.
-        # We try to get its string representation safely.
-        try:
-            val = str(obj.media_file)
-            if val is None:
-                return getattr(obj.media_file, 'public_id', None)
-            return val
-        except Exception:
-            return getattr(obj.media_file, 'public_id', None)
+        return _generate_media_url(obj.media_file)
 
     def create(self, validated_data):
         media_file = self.initial_data.get('media_file')
@@ -69,15 +93,7 @@ class PostSerializer(serializers.ModelSerializer):
         read_only_fields = ['author', 'created_at', 'status']
 
     def get_media_file(self, obj):
-        if not obj.media_file:
-            return None
-        try:
-            val = str(obj.media_file)
-            if val is None:
-                return getattr(obj.media_file, 'public_id', None)
-            return val
-        except Exception:
-            return getattr(obj.media_file, 'public_id', None)
+        return _generate_media_url(obj.media_file)
 
     def create(self, validated_data):
         validated_data['author'] = self.context['request'].user
