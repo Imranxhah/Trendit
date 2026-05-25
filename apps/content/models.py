@@ -49,6 +49,17 @@ class PostQuerySet(models.QuerySet):
             avg_rating=Subquery(avg_rating_sq),
             vote_count=Coalesce(Subquery(vote_count_sq), Value(0)),
             favorite_count=Coalesce(Subquery(favorite_count_sq), Value(0))
+        ).select_related(
+            # Eliminates per-row FK lookups for author.username,
+            # author.profile_picture, and category.name in PostSerializer.
+            'author',
+            'category',
+        ).prefetch_related(
+            # Eliminates the N+1 on the nested SubPostSerializer list field.
+            # Also pre-fetches sub_post authors so SubPostSerializer's
+            # author_username / author_profile_picture fields don't hit the DB per row.
+            'sub_posts',
+            'sub_posts__author',
         )
 
 class PostManager(models.Manager):

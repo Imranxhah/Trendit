@@ -1,4 +1,5 @@
 from rest_framework import generics, permissions, status
+from rest_framework.pagination import CursorPagination
 from rest_framework.response import Response
 from .models import Post, Category
 from .serializers import PostSerializer, CategorySerializer
@@ -12,6 +13,18 @@ from django.db.models.functions import Coalesce
 from .models import Post, Category, SubPost
 from .serializers import PostSerializer, CategorySerializer, SubPostSerializer
 from apps.social.models import Vote, Favorite
+
+class FeedCursorPagination(CursorPagination):
+    """
+    Cursor-based pagination for the main feed.
+    Prevents duplicate posts appearing when new content is uploaded while
+    a user is mid-scroll. Flutter's Dio client simply follows the `next`
+    URL string — no client-side cursor math needed.
+    """
+    page_size = 15
+    ordering = '-created_at'
+    cursor_query_param = 'cursor'
+
 
 class TrendingFeedView(generics.ListAPIView):
     serializer_class = PostSerializer
@@ -33,7 +46,8 @@ class SubPostCreateView(generics.CreateAPIView):
 
 class PostFeedView(generics.ListAPIView):
     serializer_class = PostSerializer
-    permission_classes = [permissions.AllowAny] # Feed is public or restricted? Let's assume public for now
+    permission_classes = [permissions.AllowAny]
+    pagination_class = FeedCursorPagination
 
     def get_queryset(self):
         user = self.request.user
@@ -76,8 +90,27 @@ class IsAuthorOrReadOnly(permissions.BasePermission):
 
 import cloudinary.uploader
 import time
+import threading
 from django.conf import settings
 from rest_framework.views import APIView
+
+
+def _delete_cloudinary_async(public_id: str, resource_type: str = 'image') -> None:
+    """
+    Fires a Cloudinary delete in a background daemon thread so that
+    PostDetailView.perform_destroy() can return a 204 to Flutter immediately
+    without blocking on the Cloudinary API round-trip.
+    Mirrors the EmailThread pattern in apps/users/utils.py.
+    """
+    def _task():
+        try:
+            cloudinary.uploader.destroy(public_id, resource_type=resource_type)
+        except Exception as e:
+            # Log but never crash the request cycle.
+            print(f"[Cloudinary async delete] Failed for {public_id!r}: {e}")
+
+    t = threading.Thread(target=_task, daemon=True)
+    t.start()
 
 class CloudinarySignatureView(APIView):
     """
@@ -122,32 +155,38 @@ class PostDetailView(generics.RetrieveUpdateDestroyAPIView):
         return Post.objects.all().with_annotations(user)
 
     def perform_destroy(self, instance):
-        # Delete from Cloudinary before deleting from DB
+        # Capture media metadata BEFORE deleting the DB row so we still
+        # have the data needed for the Cloudinary call.
+        public_id = None
+        resource_type = 'image'
+
         if instance.media_file and not instance.is_media_deleted:
-            # CloudinaryField returns a CloudinaryResource.
-            # It might not have a .name attribute like a standard Django FileField.
             public_id = getattr(instance.media_file, 'public_id', None)
             if not public_id:
                 try:
                     public_id = str(instance.media_file)
                 except Exception:
                     public_id = None
-            
+
             if public_id:
-                # Basic cleanup logic for Cloudinary public_id
-                for ext in ['.mp4', '.mov', '.avi', '.mkv', '.webm', '.jpg', '.jpeg', '.png', '.gif', '.webp']:
+                # Strip file extension from public_id if present.
+                for ext in ['.mp4', '.mov', '.avi', '.mkv', '.webm',
+                            '.jpg', '.jpeg', '.png', '.gif', '.webp']:
                     if public_id.lower().endswith(ext):
-                        public_id = public_id[:-(len(ext))]
+                        public_id = public_id[: -(len(ext))]
                         break
-                
-                # Determine resource type
+
+                # Determine resource type from the stored media name.
                 video_exts = ('.mp4', '.mov', '.avi', '.mkv', '.webm')
-                media_name = getattr(instance.media_file, 'name', str(instance.media_file) or "")
-                resource_type = 'video' if any(media_name.lower().endswith(e) for e in video_exts) else 'image'
-                
-                try:
-                    cloudinary.uploader.destroy(public_id, resource_type=resource_type)
-                except Exception:
-                    pass # Silently fail if Cloudinary deletion fails
-        
+                media_name = getattr(instance.media_file, 'name',
+                                     str(instance.media_file) or '')
+                resource_type = 'video' if any(
+                    media_name.lower().endswith(e) for e in video_exts
+                ) else 'image'
+
+        # Delete the DB row first — Flutter gets an instant 204.
         instance.delete()
+
+        # Fire Cloudinary deletion in background — non-blocking.
+        if public_id:
+            _delete_cloudinary_async(public_id, resource_type)

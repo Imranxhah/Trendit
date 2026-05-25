@@ -47,8 +47,11 @@ class ContentTests(APITestCase):
         Post.objects.create(author=self.user, category=self.category, caption="Hidden", is_media_deleted=True)
         
         response = self.client.get(self.feed_url)
-        # Standardized renderer wraps list in 'data'
-        data_list = response.data['data'] if isinstance(response.data, dict) and 'data' in response.data else response.data
+        # StandardizedJSONRenderer wraps the response body in 'data'.
+        # Cursor pagination then wraps the list in 'results'.
+        # Unwrap both layers to get the actual post list.
+        body = response.data.get('data', response.data) if isinstance(response.data, dict) else response.data
+        data_list = body.get('results', body) if isinstance(body, dict) else body
         self.assertEqual(len(data_list), 1)
 
     @patch('cloudinary.uploader.upload')

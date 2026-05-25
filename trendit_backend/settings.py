@@ -37,6 +37,7 @@ INSTALLED_APPS = [
     # Third party apps
     'rest_framework',
     'rest_framework_simplejwt',
+    'rest_framework_simplejwt.token_blacklist',
     'corsheaders',
     'phonenumber_field',
     'cloudinary_storage',
@@ -65,6 +66,31 @@ REST_FRAMEWORK = {
         'apps.core.renderers.StandardizedJSONRenderer',
         'rest_framework.renderers.BrowsableAPIRenderer',
     ),
+}
+
+# ─── SimpleJWT ───────────────────────────────────────────────────────────────
+from datetime import timedelta
+
+SIMPLE_JWT = {
+    # Access token is short-lived — Flutter's Dio interceptor catches 401s and
+    # silently swaps it using the refresh token, so 15 min is safe and tight.
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=15),
+
+    # Refresh token lasts 30 days — covers typical app usage without forcing
+    # users to re-login frequently.
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=30),
+
+    # Each call to /token/refresh/ issues a brand-new refresh token and
+    # immediately blacklists the old one — prevents replay attacks.
+    'ROTATE_REFRESH_TOKENS': True,
+    'BLACKLIST_AFTER_ROTATION': True,
+
+    # Keeps the last_login field current without extra queries.
+    'UPDATE_LAST_LOGIN': True,
+
+    'ALGORITHM': 'HS256',
+    'AUTH_HEADER_TYPES': ('Bearer',),
+    'AUTH_TOKEN_CLASSES': ('rest_framework_simplejwt.tokens.AccessToken',),
 }
 
 MIDDLEWARE = [
