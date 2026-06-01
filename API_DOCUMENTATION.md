@@ -291,6 +291,19 @@ This document provides a comprehensive detail of each endpoint provided by the T
 *   **URL:** `/api/social/close-buddies/`
 *   **Method:** `GET`
 *   **Auth Required:** Yes
+*   **Description:** Lists users YOU have added to your inner circle.
+
+### List Users Who Added You as Close Buddy
+*   **URL:** `/api/social/close-buddies/added-by/`
+*   **Method:** `GET`
+*   **Auth Required:** Yes
+*   **Description:** Lists users who have added YOU to their inner circle.
+
+### Close Buddy Suggestions
+*   **URL:** `/api/social/close-buddies/suggestions/`
+*   **Method:** `GET`
+*   **Auth Required:** Yes
+*   **Description:** Lists mutual buddies who are not currently in your inner circle and don't have pending close buddy requests. Useful for the "Suggestions" section.
 
 ### Remove Close Buddy
 *   **URL:** `/api/social/close-buddies/remove/`

@@ -48,6 +48,8 @@
    - [GET /social/close-buddies/requests/](#93-list-incoming-close-buddy-requests)
    - [GET /social/close-buddies/pending-sent/](#94-list-pending-sent-close-buddy-requests)
    - [GET /social/close-buddies/](#95-list-your-inner-circle)
+   - [GET /social/close-buddies/added-by/](#910-list-users-who-added-you-to-their-inner-circle)
+   - [GET /social/close-buddies/suggestions/](#911-list-close-buddy-suggestions)
    - [DELETE /social/close-buddies/remove/](#96-remove-someone-from-inner-circle)
    - [GET /social/close-buddies/unapproved-posts/](#97-list-unapproved-posts-from-your-close-buddies)
    - [GET /social/close-buddies/requests/rejected/](#98-list-rejected-close-buddy-requests)
@@ -1320,6 +1322,40 @@ Returns all close buddy requests sent **to** the authenticated user that have be
 **Success Response — `200 OK` (`data` is an array of CloseBuddyRequest objects)**
 
 Each object has the same schema as [9.1](#91-send-close-buddy-request). Ordered by `-created_at` (newest first).
+
+---
+
+### 9.10 List Users Who Added You to Their Inner Circle
+
+**`GET /api/social/close-buddies/added-by/`**
+
+Returns all users who have added the authenticated user to their inner circle.
+
+**Authentication Required:** Yes
+
+**Success Response — `200 OK` (`data` is an array):**
+
+Each object:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | int | CloseBuddy record ID. |
+| `user` | int | User ID of the person who added you. |
+| `user_details` | object | [Minimal User Object](#141-minimal-user-object). |
+
+---
+
+### 9.11 List Close Buddy Suggestions
+
+**`GET /api/social/close-buddies/suggestions/`**
+
+Returns a list of mutual buddies who are not yet in your inner circle and don't have pending close buddy requests.
+
+**Authentication Required:** Yes
+
+**Success Response — `200 OK` (`data` is an array of User Search objects):**
+
+Each object follows the [User Search Object Schema](#142-user-search-object).
 
 ---
 

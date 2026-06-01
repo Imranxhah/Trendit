@@ -7,7 +7,8 @@ from .models import Follow, Buddy, CloseBuddy, CloseBuddyRequest, PostApproval, 
 from .serializers import (
     FollowSerializer, BuddySerializer,
     CloseBuddyRequestSerializer, CloseBuddyRespondSerializer,
-    CloseBuddySerializer, PostApprovalSerializer, VoteSerializer,
+    CloseBuddySerializer, ReverseCloseBuddySerializer,
+    PostApprovalSerializer, VoteSerializer,
     FavoriteSerializer, UserMinimalSerializer, UserSearchSerializer
 )
 from django.contrib.auth import get_user_model
@@ -204,6 +205,52 @@ class CloseBuddyListView(generics.ListAPIView):
 
     def get_queryset(self):
         return CloseBuddy.objects.filter(user=self.request.user)
+
+
+class ReverseCloseBuddyListView(generics.ListAPIView):
+    """
+    GET /api/social/close-buddies/added-by/
+    Returns users who have added the current user to their inner circle.
+    """
+    serializer_class = ReverseCloseBuddySerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return CloseBuddy.objects.filter(buddy=self.request.user)
+
+
+class CloseBuddySuggestionsView(generics.ListAPIView):
+    """
+    GET /api/social/close-buddies/suggestions/
+    Returns mutual buddies who are not yet close buddies and don't have pending requests.
+    """
+    serializer_class = UserSearchSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+        # Mutual buddies
+        buddies = User.objects.filter(
+            Q(buddies_as_user1__user2=user) | 
+            Q(buddies_as_user2__user1=user)
+        )
+        
+        # Already close buddies
+        already_close = CloseBuddy.objects.filter(user=user).values_list('buddy_id', flat=True)
+        
+        # Pending sent requests
+        pending_sent = CloseBuddyRequest.objects.filter(sender=user, status='pending').values_list('receiver_id', flat=True)
+        
+        # Pending received requests
+        pending_received = CloseBuddyRequest.objects.filter(receiver=user, status='pending').values_list('sender_id', flat=True)
+
+        return buddies.exclude(
+            id__in=already_close
+        ).exclude(
+            id__in=pending_sent
+        ).exclude(
+            id__in=pending_received
+        ).order_by('username')
 
 
 class RemoveCloseBuddyView(APIView):

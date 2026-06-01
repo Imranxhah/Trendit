@@ -12,7 +12,8 @@ from .views import (
     RejectedCloseBuddyRequestsView, IgnoredCloseBuddyRequestsView,
 
     # Close Buddy (Inner Circle)
-    CloseBuddyListView, RemoveCloseBuddyView,
+    CloseBuddyListView, ReverseCloseBuddyListView, CloseBuddySuggestionsView,
+    RemoveCloseBuddyView,
 
     # Interactions
     PostApprovalCreateView, VoteCreateView, FavoriteToggleView,
@@ -42,6 +43,8 @@ urlpatterns = [
 
     # ── Close Buddy (Inner Circle) ────────────────────────────────────────────
     path('close-buddies/', CloseBuddyListView.as_view(), name='close-buddy-list'),
+    path('close-buddies/added-by/', ReverseCloseBuddyListView.as_view(), name='close-buddy-added-by'),
+    path('close-buddies/suggestions/', CloseBuddySuggestionsView.as_view(), name='close-buddy-suggestions'),
     path('close-buddies/remove/', RemoveCloseBuddyView.as_view(), name='close-buddy-remove'),
     path('close-buddies/unapproved-posts/', UnapprovedBuddyPostsView.as_view(), name='close-buddy-unapproved-posts'),
 

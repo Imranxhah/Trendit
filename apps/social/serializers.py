@@ -97,6 +97,14 @@ class CloseBuddySerializer(serializers.ModelSerializer):
         fields = ['id', 'buddy', 'buddy_details']
 
 
+class ReverseCloseBuddySerializer(serializers.ModelSerializer):
+    user_details = UserMinimalSerializer(source='user', read_only=True)
+
+    class Meta:
+        model = CloseBuddy
+        fields = ['id', 'user', 'user_details']
+
+
 # ─── Post Approval ────────────────────────────────────────────────────────────
 
 class PostApprovalSerializer(serializers.ModelSerializer):
