@@ -1,6 +1,6 @@
 from django.db.models.signals import post_save, post_delete
 from django.dispatch import receiver
-from .models import PostApproval, Follow, Buddy
+from .models import PostApproval, Follow, Buddy, CloseBuddy, CloseBuddyRequest
 from apps.content.models import Post
 
 @receiver(post_save, sender=PostApproval)
@@ -37,3 +37,14 @@ def manage_buddy_on_unfollow(sender, instance, **kwargs):
     # If either user unfollows the other, they are no longer mutual buddies
     u1, u2 = sorted([follower.id, following.id])
     Buddy.objects.filter(user1_id=u1, user2_id=u2).delete()
+
+
+@receiver(post_delete, sender=CloseBuddy)
+def manage_close_buddy_request_on_remove(sender, instance, **kwargs):
+    # When a user is removed from the Inner Circle, delete the accepted request 
+    # so they can be invited again in the future if needed.
+    CloseBuddyRequest.objects.filter(
+        sender=instance.user,
+        receiver=instance.buddy,
+        status='accepted'
+    ).delete()
