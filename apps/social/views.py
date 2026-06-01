@@ -346,11 +346,12 @@ class UnapprovedBuddyPostsView(generics.ListAPIView):
 
     def get_queryset(self):
         user = self.request.user
-        close_buddy_ids = CloseBuddy.objects.filter(user=user).values_list('buddy_id', flat=True)
+        # Find users who have added ME to their inner circle
+        authors_who_added_me = CloseBuddy.objects.filter(buddy=user).values_list('user_id', flat=True)
         already_approved_post_ids = PostApproval.objects.filter(buddy=user).values_list('post_id', flat=True)
 
         return Post.objects.filter(
-            author__in=close_buddy_ids,
+            author__in=authors_who_added_me,
             status='pending',
             is_media_deleted=False
         ).exclude(
