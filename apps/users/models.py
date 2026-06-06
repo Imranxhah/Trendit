@@ -11,6 +11,7 @@ class User(AbstractUser):
     is_verified = models.BooleanField(default=False)
     username = models.CharField(max_length=150, unique=True)
     profile_picture = models.ImageField(upload_to='profile_pics/', null=True, blank=True)
+    has_completed_profile = models.BooleanField(default=False)
 
     # Ban fields — only admins should toggle these
     is_banned = models.BooleanField(default=False)

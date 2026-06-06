@@ -147,8 +147,25 @@ class OTPVerifySerializer(serializers.Serializer):
 class UserProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ['id', 'username', 'phone_number', 'email', 'first_name', 'last_name', 'profile_picture']
-        read_only_fields = ['id', 'email'] # Usually email shouldn't be changed through simple profile update without verification
+        fields = ['id', 'username', 'phone_number', 'email', 'first_name', 'last_name', 'profile_picture', 'has_completed_profile']
+        read_only_fields = ['id', 'email', 'has_completed_profile'] # Usually email shouldn't be changed through simple profile update without verification
+
+    def update(self, instance, validated_data):
+        # Perform standard update
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        
+        # Check if profile is complete
+        # We check both the validated_data (new changes) and the instance (existing data)
+        first_name = validated_data.get('first_name', instance.first_name)
+        last_name = validated_data.get('last_name', instance.last_name)
+        phone_number = validated_data.get('phone_number', instance.phone_number)
+
+        if first_name and last_name and phone_number:
+            instance.has_completed_profile = True
+
+        instance.save()
+        return instance
 
 class ForgotPasswordRequestSerializer(serializers.Serializer):
     email = serializers.EmailField()
@@ -181,7 +198,8 @@ class UserProfileDetailSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'username', 'first_name', 'last_name', 'profile_picture',
             'followers_count', 'following_count', 'buddies_count', 'total_posts',
-            'is_following', 'is_followed_by', 'is_buddy', 'is_close_buddy', 'close_buddy_request_status'
+            'is_following', 'is_followed_by', 'is_buddy', 'is_close_buddy', 'close_buddy_request_status',
+            'has_completed_profile'
         ]
 
     def get_profile_picture(self, obj):

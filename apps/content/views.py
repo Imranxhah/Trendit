@@ -3,10 +3,11 @@ from rest_framework.pagination import CursorPagination
 from rest_framework.response import Response
 from .models import Post, Category
 from .serializers import PostSerializer, CategorySerializer
+from apps.users.permissions import IsProfileComplete
 
 class PostCreateView(generics.CreateAPIView):
     serializer_class = PostSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, IsProfileComplete]
 
 from django.db.models import Avg, Count, OuterRef, Subquery, Exists, Value
 from django.db.models.functions import Coalesce
@@ -39,7 +40,7 @@ class TrendingFeedView(generics.ListAPIView):
 
 class SubPostCreateView(generics.CreateAPIView):
     serializer_class = SubPostSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, IsProfileComplete]
 
     def perform_create(self, serializer):
         serializer.save(author=self.request.user)
@@ -117,7 +118,7 @@ class CloudinarySignatureView(APIView):
     POST /api/content/upload-signature/
     Generates a signed upload request for direct client-to-Cloudinary uploads.
     """
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, IsProfileComplete]
 
     def post(self, request, *args, **kwargs):
         timestamp = int(time.time())

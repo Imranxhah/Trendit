@@ -12,8 +12,8 @@ from .serializers import (
     FavoriteSerializer, UserMinimalSerializer, UserSearchSerializer
 )
 from django.contrib.auth import get_user_model
-from apps.content.models import Post
 from apps.content.serializers import PostSerializer
+from apps.users.permissions import IsProfileComplete
 
 User = get_user_model()
 
@@ -26,7 +26,7 @@ class FollowView(APIView):
     DELETE /api/social/follow/         → unfollow a user  { "user_id": <id> }
     No permission from the target is needed.
     """
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, IsProfileComplete]
 
     def post(self, request):
         user_id = request.data.get('user_id')
@@ -62,7 +62,7 @@ class FollowingListView(generics.ListAPIView):
     GET /api/social/following/<user_id>/ → list of users target user is following
     """
     serializer_class = UserMinimalSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, IsProfileComplete]
 
     def get_queryset(self):
         user_id = self.kwargs.get('user_id')
@@ -78,7 +78,7 @@ class FollowersListView(generics.ListAPIView):
     GET /api/social/followers/<user_id>/ → list of users who are following target user
     """
     serializer_class = UserMinimalSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, IsProfileComplete]
 
     def get_queryset(self):
         user_id = self.kwargs.get('user_id')
@@ -95,7 +95,7 @@ class BuddyListView(generics.ListAPIView):
     GET /api/social/buddies/          → list of users who are your mutual buddies
     """
     serializer_class = UserMinimalSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, IsProfileComplete]
 
     def get_queryset(self):
         user = self.request.user
@@ -117,7 +117,7 @@ class SendCloseBuddyRequestView(generics.CreateAPIView):
     Only mutual buddies can send requests.
     """
     serializer_class = CloseBuddyRequestSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, IsProfileComplete]
 
     def perform_create(self, serializer):
         serializer.save(sender=self.request.user)
@@ -130,7 +130,7 @@ class RespondCloseBuddyRequestView(APIView):
     The RECEIVER accepts or rejects a close buddy request.
     On acceptance, a CloseBuddy entry is automatically created.
     """
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, IsProfileComplete]
 
     def post(self, request):
         serializer = CloseBuddyRespondSerializer(data=request.data)
@@ -171,7 +171,7 @@ class IncomingCloseBuddyRequestsView(generics.ListAPIView):
     Returns all pending close buddy requests sent TO the current user.
     """
     serializer_class = CloseBuddyRequestSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, IsProfileComplete]
 
     def get_queryset(self):
         return CloseBuddyRequest.objects.filter(
@@ -185,7 +185,7 @@ class PendingSentCloseBuddyRequestsView(generics.ListAPIView):
     Returns all close buddy requests the current user sent that are still pending.
     """
     serializer_class = CloseBuddyRequestSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, IsProfileComplete]
 
     def get_queryset(self):
         return CloseBuddyRequest.objects.filter(
@@ -201,7 +201,7 @@ class CloseBuddyListView(generics.ListAPIView):
     Returns the current user's inner circle (up to 5 close buddies).
     """
     serializer_class = CloseBuddySerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, IsProfileComplete]
 
     def get_queryset(self):
         return CloseBuddy.objects.filter(user=self.request.user)
@@ -213,7 +213,7 @@ class ReverseCloseBuddyListView(generics.ListAPIView):
     Returns users who have added the current user to their inner circle.
     """
     serializer_class = ReverseCloseBuddySerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, IsProfileComplete]
 
     def get_queryset(self):
         return CloseBuddy.objects.filter(buddy=self.request.user)
@@ -225,7 +225,7 @@ class CloseBuddySuggestionsView(generics.ListAPIView):
     Returns mutual buddies who are not yet close buddies and don't have pending requests.
     """
     serializer_class = UserSearchSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, IsProfileComplete]
 
     def get_queryset(self):
         user = self.request.user
@@ -259,7 +259,7 @@ class RemoveCloseBuddyView(APIView):
     Body: { "user_id": <id> }
     Removes a user from your inner circle.
     """
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, IsProfileComplete]
 
     def delete(self, request):
         user_id = request.data.get('user_id')
@@ -282,7 +282,7 @@ class PostApprovalCreateView(generics.CreateAPIView):
     Auto-activates the post when all close buddies have approved.
     """
     serializer_class = PostApprovalSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, IsProfileComplete]
 
     def perform_create(self, serializer):
         post = serializer.validated_data['post']
@@ -319,7 +319,7 @@ class VoteCreateView(generics.CreateAPIView):
     Returns the full updated post object.
     """
     serializer_class = VoteSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, IsProfileComplete]
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
@@ -353,7 +353,7 @@ class FavoriteToggleView(APIView):
     Toggles a post as favorite for the current user.
     Returns whether the post is now favorited or not.
     """
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, IsProfileComplete]
 
     def post(self, request):
         post_id = request.data.get('post')
@@ -389,7 +389,7 @@ class UnapprovedBuddyPostsView(generics.ListAPIView):
     Returns posts from close buddies that are pending and not yet approved by the current user.
     """
     serializer_class = PostSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, IsProfileComplete]
 
     def get_queryset(self):
         user = self.request.user
@@ -414,7 +414,7 @@ class UserSearchView(generics.ListAPIView):
     Search users by username, first_name, or last_name.
     """
     serializer_class = UserSearchSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, IsProfileComplete]
 
     def get_queryset(self):
         query = self.request.query_params.get('q', '').strip()
@@ -434,7 +434,7 @@ class RejectedCloseBuddyRequestsView(generics.ListAPIView):
     Returns all rejected close buddy requests sent TO the current user.
     """
     serializer_class = CloseBuddyRequestSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, IsProfileComplete]
 
     def get_queryset(self):
         return CloseBuddyRequest.objects.filter(
@@ -448,7 +448,7 @@ class IgnoredCloseBuddyRequestsView(generics.ListAPIView):
     Returns all ignored close buddy requests sent TO the current user.
     """
     serializer_class = CloseBuddyRequestSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, IsProfileComplete]
 
     def get_queryset(self):
         return CloseBuddyRequest.objects.filter(
