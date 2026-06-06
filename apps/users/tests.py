@@ -61,7 +61,7 @@ class UserAuthTests(APITestCase):
         }
         response = self.client.post(self.login_url, login_data)
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
-        self.assertIn('Account is not verified', response.data['detail'])
+        self.assertIn('ACCOUNT_NOT_VERIFIED', str(response.data))
 
     def test_dual_login_email(self):
         # Register and verify
@@ -286,3 +286,63 @@ class UserViolationTests(APITestCase):
         self.assertIn("Harassment", self.user.ban_reason)
 
 
+from unittest.mock import patch
+from django.test import override_settings
+
+class GoogleLoginTests(APITestCase):
+    def setUp(self):
+        self.google_login_url = reverse('google_login')
+
+    @override_settings(GOOGLE_CLIENT_ID_WEB='test-client-id')
+    @patch('apps.users.serializers.id_token.verify_oauth2_token')
+    def test_google_login_creates_new_user(self, mock_verify):
+        mock_verify.return_value = {
+            'iss': 'accounts.google.com',
+            'aud': 'test-client-id',
+            'email': 'newgoogleuser@example.com',
+            'given_name': 'Google',
+            'family_name': 'User'
+        }
+
+        response = self.client.post(self.google_login_url, {'id_token': 'fake-token'})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn('access', response.data)
+        self.assertIn('refresh', response.data)
+        
+        # User should be created and verified
+        user = User.objects.get(email='newgoogleuser@example.com')
+        self.assertTrue(user.is_verified)
+        self.assertEqual(user.first_name, 'Google')
+
+    @override_settings(GOOGLE_CLIENT_ID_WEB='test-client-id')
+    @patch('apps.users.serializers.id_token.verify_oauth2_token')
+    def test_google_login_existing_user(self, mock_verify):
+        # Create user manually
+        User.objects.create_user(
+            username='existinggoogle',
+            email='existinggoogle@example.com',
+            is_verified=False
+        )
+
+        mock_verify.return_value = {
+            'iss': 'accounts.google.com',
+            'aud': 'test-client-id',
+            'email': 'existinggoogle@example.com',
+        }
+
+        response = self.client.post(self.google_login_url, {'id_token': 'fake-token'})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn('access', response.data)
+
+        # User should now be verified
+        user = User.objects.get(email='existinggoogle@example.com')
+        self.assertTrue(user.is_verified)
+
+    @override_settings(GOOGLE_CLIENT_ID_WEB='test-client-id')
+    @patch('apps.users.serializers.id_token.verify_oauth2_token')
+    def test_google_login_invalid_token(self, mock_verify):
+        mock_verify.side_effect = ValueError('Invalid token')
+
+        response = self.client.post(self.google_login_url, {'id_token': 'fake-invalid-token'})
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertIn('Invalid Google token', str(response.data))

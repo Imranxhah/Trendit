@@ -242,6 +242,11 @@ UNFOLD = {
     },
 }
 
+# ─── Google Auth ─────────────────────────────────────────────────────────────
+GOOGLE_CLIENT_ID_WEB = config('GOOGLE_CLIENT_ID_WEB', default='')
+GOOGLE_CLIENT_ID_IOS = config('GOOGLE_CLIENT_ID_IOS', default='')
+GOOGLE_CLIENT_ID_ANDROID = config('GOOGLE_CLIENT_ID_ANDROID', default='')
+
 # ─── Email Configuration ─────────────────────────────────────────────────────
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = config('EMAIL_HOST', default='smtp.gmail.com')

@@ -13,7 +13,8 @@ from .serializers import (
     UserProfileSerializer,
     ForgotPasswordRequestSerializer,
     ForgotPasswordResetSerializer,
-    UserProfileDetailSerializer
+    UserProfileDetailSerializer,
+    GoogleLoginSerializer
 )
 from .utils import send_otp_email
 
@@ -278,4 +279,14 @@ class RecordViolationView(APIView):
             "remaining_violations": remaining_violations,
             "is_banned": user.is_banned
         }, status=status.HTTP_201_CREATED)
+
+class GoogleLoginView(APIView):
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        serializer = GoogleLoginSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        # The validated data from serializer will contain the tokens
+        return Response(serializer.validated_data, status=status.HTTP_200_OK)
 

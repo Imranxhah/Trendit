@@ -11,6 +11,12 @@ from django.utils import timezone
 from datetime import timedelta
 from .models import OTPVerification
 import random
+from phonenumber_field.serializerfields import PhoneNumberField
+
+from google.oauth2 import id_token
+from google.auth.transport import requests as google_requests
+from django.conf import settings
+from rest_framework_simplejwt.tokens import RefreshToken
 
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
     """
@@ -90,7 +96,7 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
 class UserRegistrationSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True)
     email = serializers.EmailField()
-    phone_number = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    phone_number = PhoneNumberField(required=False, allow_blank=True, allow_null=True)
 
     class Meta:
         model = User
@@ -267,4 +273,91 @@ class UserProfileDetailSerializer(serializers.ModelSerializer):
             if req_received:
                 return f"received_{req_received.status}" # received_pending, received_accepted, received_rejected
         return None
+
+class GoogleLoginSerializer(serializers.Serializer):
+    id_token = serializers.CharField()
+
+    def validate(self, attrs):
+        token = attrs.get('id_token')
+        
+        # We need to collect the allowed client IDs
+        allowed_client_ids = []
+        if settings.GOOGLE_CLIENT_ID_WEB:
+            allowed_client_ids.append(settings.GOOGLE_CLIENT_ID_WEB)
+        if settings.GOOGLE_CLIENT_ID_IOS:
+            allowed_client_ids.append(settings.GOOGLE_CLIENT_ID_IOS)
+        if settings.GOOGLE_CLIENT_ID_ANDROID:
+            allowed_client_ids.append(settings.GOOGLE_CLIENT_ID_ANDROID)
+
+        if not allowed_client_ids:
+            raise exceptions.AuthenticationFailed("Google authentication is not configured on the server.")
+
+        try:
+            # Verify the token
+            # It will raise ValueError if the token is invalid, expired, or has a wrong audience
+            idinfo = id_token.verify_oauth2_token(
+                token, 
+                google_requests.Request()
+                # If we don't pass audience here, we must verify it manually below, 
+                # or we can just let google-auth verify it by not specifying a single audience,
+                # but instead checking if idinfo['aud'] is in our allowed list.
+            )
+
+            # verify_oauth2_token defaults to checking against a single audience if provided.
+            # Since we have multiple, we verify the audience manually.
+            if idinfo['aud'] not in allowed_client_ids:
+                raise exceptions.AuthenticationFailed('Could not verify audience.')
+
+            if idinfo['iss'] not in ['accounts.google.com', 'https://accounts.google.com']:
+                raise exceptions.AuthenticationFailed('Wrong issuer.')
+            
+            email = idinfo.get('email')
+            if not email:
+                raise exceptions.AuthenticationFailed('Email not provided by Google.')
+                
+            # Get or create the user
+            user = User.objects.filter(email=email).first()
+            if not user:
+                # Create a new user
+                base_username = email.split('@')[0]
+                username = base_username
+                counter = 1
+                while User.objects.filter(username=username).exists():
+                    username = f"{base_username}{counter}"
+                    counter += 1
+
+                first_name = idinfo.get('given_name', '')
+                last_name = idinfo.get('family_name', '')
+                
+                # Note: We can also download the profile picture if we want, but for now we'll just create the user.
+                user = User.objects.create_user(
+                    username=username,
+                    email=email,
+                    first_name=first_name,
+                    last_name=last_name,
+                    is_verified=True # Google already verified the email
+                )
+                user.set_unusable_password()
+                user.save()
+            else:
+                if user.is_banned:
+                    reason = user.ban_reason or 'No reason provided.'
+                    raise exceptions.AuthenticationFailed(f'Your account has been banned. Reason: {reason}', code='account_banned')
+                if not user.is_verified:
+                    user.is_verified = True
+                    user.save()
+
+            # Generate tokens
+            refresh = RefreshToken.for_user(user)
+            self.user = user
+            
+            return {
+                'refresh': str(refresh),
+                'access': str(refresh.access_token),
+                'user_id': user.id,
+            }
+
+        except ValueError as e:
+            # Invalid token
+            raise exceptions.AuthenticationFailed(f"Invalid Google token: {str(e)}")
 
