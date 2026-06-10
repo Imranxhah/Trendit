@@ -12,6 +12,7 @@ from .serializers import (
     FavoriteSerializer, UserMinimalSerializer, UserSearchSerializer
 )
 from django.contrib.auth import get_user_model
+from apps.content.models import Post
 from apps.content.serializers import PostSerializer
 from apps.users.permissions import IsProfileComplete
 
