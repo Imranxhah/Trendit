@@ -62,7 +62,7 @@ class FollowingListView(generics.ListAPIView):
     GET /api/social/following/<user_id>/ → list of users target user is following
     """
     serializer_class = UserMinimalSerializer
-    permission_classes = [permissions.IsAuthenticated, IsProfileComplete]
+    permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
         user_id = self.kwargs.get('user_id')
@@ -78,7 +78,7 @@ class FollowersListView(generics.ListAPIView):
     GET /api/social/followers/<user_id>/ → list of users who are following target user
     """
     serializer_class = UserMinimalSerializer
-    permission_classes = [permissions.IsAuthenticated, IsProfileComplete]
+    permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
         user_id = self.kwargs.get('user_id')
@@ -95,7 +95,7 @@ class BuddyListView(generics.ListAPIView):
     GET /api/social/buddies/          → list of users who are your mutual buddies
     """
     serializer_class = UserMinimalSerializer
-    permission_classes = [permissions.IsAuthenticated, IsProfileComplete]
+    permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
         user = self.request.user
@@ -201,7 +201,7 @@ class CloseBuddyListView(generics.ListAPIView):
     Returns the current user's inner circle (up to 5 close buddies).
     """
     serializer_class = CloseBuddySerializer
-    permission_classes = [permissions.IsAuthenticated, IsProfileComplete]
+    permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
         return CloseBuddy.objects.filter(user=self.request.user)
@@ -213,7 +213,7 @@ class ReverseCloseBuddyListView(generics.ListAPIView):
     Returns users who have added the current user to their inner circle.
     """
     serializer_class = ReverseCloseBuddySerializer
-    permission_classes = [permissions.IsAuthenticated, IsProfileComplete]
+    permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
         return CloseBuddy.objects.filter(buddy=self.request.user)
@@ -414,7 +414,7 @@ class UserSearchView(generics.ListAPIView):
     Search users by username, first_name, or last_name.
     """
     serializer_class = UserSearchSerializer
-    permission_classes = [permissions.IsAuthenticated, IsProfileComplete]
+    permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
         query = self.request.query_params.get('q', '').strip()
