@@ -3,7 +3,7 @@ from rest_framework_simplejwt.views import TokenRefreshView
 from .views import (
     RegisterView, VerifyOTPView, UserProfileView, UserProfileDetailView,
     BanUserView, UnbanUserView, ForgotPasswordRequestView, ForgotPasswordResetView,
-    RecordViolationView, GoogleLoginView
+    RecordViolationView, GoogleLoginView, SyncContactsView
 )
 from .serializers import CustomTokenObtainPairSerializer
 from rest_framework_simplejwt.views import TokenObtainPairView
@@ -23,6 +23,7 @@ urlpatterns = [
     path('profile/', UserProfileView.as_view(), name='user-profile'),
     path('profile/<int:user_id>/', UserProfileDetailView.as_view(), name='user-profile-detail'),
     path('search/', UserSearchView.as_view(), name='user-search'),
+    path('sync-contacts/', SyncContactsView.as_view(), name='sync-contacts'),
 
     # Forgot password
     path('forgot-password/', ForgotPasswordRequestView.as_view(), name='forgot-password'),

@@ -290,3 +290,50 @@ class GoogleLoginView(APIView):
         # The validated data from serializer will contain the tokens
         return Response(serializer.validated_data, status=status.HTTP_200_OK)
 
+
+class SyncContactsView(APIView):
+    """
+    POST /users/sync-contacts/
+    Body: { "contacts": ["+923001234567", "03001234567", ...] }
+    Finds registered users matching the provided phone numbers.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        contacts = request.data.get('contacts', [])
+        if not isinstance(contacts, list):
+            return Response({"error": "contacts must be a list"}, status=status.HTTP_400_BAD_REQUEST)
+            
+        if not contacts:
+            return Response({
+                "status": "success", 
+                "data": {"registered_users": []}
+            }, status=status.HTTP_200_OK)
+
+        matching_users = User.objects.filter(phone_number__in=contacts, is_active=True).exclude(id=request.user.id)
+        
+        data = []
+        for u in matching_users:
+            is_following = False
+            try:
+                from apps.social.models import Follow
+                is_following = Follow.objects.filter(follower=request.user, following=u).exists()
+            except Exception:
+                pass
+                
+            data.append({
+                "id": u.id,
+                "username": u.username,
+                "first_name": u.first_name,
+                "last_name": u.last_name,
+                "profile_picture": request.build_absolute_uri(u.profile_picture.url) if u.profile_picture else None,
+                "is_following": is_following
+            })
+            
+        return Response({
+            "status": "success",
+            "data": {
+                "registered_users": data
+            }
+        }, status=status.HTTP_200_OK)
+
