@@ -15,6 +15,9 @@ from django.contrib.auth import get_user_model
 from apps.content.models import Post
 from apps.content.serializers import PostSerializer
 from apps.users.permissions import IsProfileComplete
+from apps.core.fcm_utils import send_push_notification
+from apps.core.models import Notification
+from django.contrib.contenttypes.models import ContentType
 
 User = get_user_model()
 
@@ -42,6 +45,21 @@ class FollowView(APIView):
         _, created = Follow.objects.get_or_create(follower=request.user, following=target)
         if not created:
             return Response({"message": f"You are already following {target.username}."}, status=status.HTTP_200_OK)
+
+        # Trigger notification
+        Notification.objects.create(
+            recipient=target,
+            actor=request.user,
+            verb='started following you',
+            content_type=ContentType.objects.get_for_model(User),
+            object_id=request.user.id
+        )
+        send_push_notification(
+            user=target,
+            title="New Follower",
+            body=f"{request.user.username} started following you.",
+            data={"type": "follow", "target_id": str(request.user.id)}
+        )
 
         return Response({"message": f"You are now following {target.username}."}, status=status.HTTP_201_CREATED)
 
@@ -121,8 +139,22 @@ class SendCloseBuddyRequestView(generics.CreateAPIView):
     permission_classes = [permissions.IsAuthenticated, IsProfileComplete]
 
     def perform_create(self, serializer):
-        serializer.save(sender=self.request.user)
-
+        cbr = serializer.save(sender=self.request.user)
+        
+        # Trigger notification
+        Notification.objects.create(
+            recipient=cbr.receiver,
+            actor=self.request.user,
+            verb='sent you a close buddy request',
+            content_type=ContentType.objects.get_for_model(User),
+            object_id=self.request.user.id
+        )
+        send_push_notification(
+            user=cbr.receiver,
+            title="Close Buddy Request",
+            body=f"{self.request.user.username} sent you a close buddy request.",
+            data={"type": "close_buddy_request", "target_id": str(self.request.user.id)}
+        )
 
 class RespondCloseBuddyRequestView(APIView):
     """
@@ -162,6 +194,21 @@ class RespondCloseBuddyRequestView(APIView):
                     status=status.HTTP_400_BAD_REQUEST
                 )
             CloseBuddy.objects.get_or_create(user=cbr.sender, buddy=request.user)
+            
+            # Trigger notification to the sender that their request was accepted
+            Notification.objects.create(
+                recipient=cbr.sender,
+                actor=request.user,
+                verb='accepted your close buddy request',
+                content_type=ContentType.objects.get_for_model(User),
+                object_id=request.user.id
+            )
+            send_push_notification(
+                user=cbr.sender,
+                title="Request Accepted",
+                body=f"{request.user.username} accepted your close buddy request.",
+                data={"type": "close_buddy_accepted", "target_id": str(request.user.id)}
+            )
 
         return Response({"message": f"Close buddy request {action}."}, status=status.HTTP_200_OK)
 
@@ -305,6 +352,21 @@ class PostApprovalCreateView(generics.CreateAPIView):
         if total_buddies > 0 and total_approvals >= total_buddies:
             post.status = 'active'
             post.save(update_fields=['status'])
+            
+        # Trigger notification to the author that someone approved it
+        Notification.objects.create(
+            recipient=post.author,
+            actor=user,
+            verb='approved your post',
+            content_type=ContentType.objects.get_for_model(Post),
+            object_id=post.id
+        )
+        send_push_notification(
+            user=post.author,
+            title="Post Approved",
+            body=f"{user.username} approved your recent post.",
+            data={"type": "post_approval", "target_id": str(post.id)}
+        )
 
 
 # ─── Vote ─────────────────────────────────────────────────────────────────────

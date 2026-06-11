@@ -255,3 +255,17 @@ EMAIL_USE_TLS = config('EMAIL_USE_TLS', default=True, cast=bool)
 EMAIL_HOST_USER = config('EMAIL_HOST_USER', default='')
 EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD', default='')
 DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default=EMAIL_HOST_USER)
+
+# ─── Firebase Admin SDK ──────────────────────────────────────────────────────
+import firebase_admin
+from firebase_admin import credentials
+
+FIREBASE_CREDENTIALS = config('FIREBASE_CREDENTIALS', default='')
+if FIREBASE_CREDENTIALS and os.path.exists(FIREBASE_CREDENTIALS):
+    if not firebase_admin._apps:
+        try:
+            cred = credentials.Certificate(FIREBASE_CREDENTIALS)
+            firebase_admin.initialize_app(cred)
+            print(f"Firebase Admin initialized with {FIREBASE_CREDENTIALS}")
+        except Exception as e:
+            print(f"Failed to initialize Firebase Admin: {e}")

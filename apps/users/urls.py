@@ -3,7 +3,7 @@ from rest_framework_simplejwt.views import TokenRefreshView
 from .views import (
     RegisterView, VerifyOTPView, UserProfileView, UserProfileDetailView,
     BanUserView, UnbanUserView, ForgotPasswordRequestView, ForgotPasswordResetView,
-    RecordViolationView, GoogleLoginView, SyncContactsView
+    RecordViolationView, GoogleLoginView, SyncContactsView, UpdateDeviceTokenView
 )
 from .serializers import CustomTokenObtainPairSerializer
 from rest_framework_simplejwt.views import TokenObtainPairView
@@ -35,4 +35,7 @@ urlpatterns = [
     
     # Violations / Strikes
     path('violations/', RecordViolationView.as_view(), name='record-violation'),
+    
+    # Push Notifications Device Token
+    path('device-token/', UpdateDeviceTokenView.as_view(), name='update-device-token'),
 ]

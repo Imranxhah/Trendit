@@ -337,3 +337,31 @@ class SyncContactsView(APIView):
             }
         }, status=status.HTTP_200_OK)
 
+
+class UpdateDeviceTokenView(APIView):
+    """
+    POST /users/device-token/
+    Body: { "device_id": "unique-device-id", "fcm_token": "token-string" }
+    Updates or creates a UserDevice entry with the given FCM token.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        device_id = request.data.get('device_id')
+        fcm_token = request.data.get('fcm_token')
+
+        if not device_id:
+            return Response({"error": "device_id is required."}, status=status.HTTP_400_BAD_REQUEST)
+        if not fcm_token:
+            return Response({"error": "fcm_token is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Update or create the device record
+        from apps.users.models import UserDevice
+        device, created = UserDevice.objects.update_or_create(
+            user=request.user,
+            device_id=device_id,
+            defaults={'fcm_token': fcm_token, 'is_active': True}
+        )
+
+        return Response({"message": "Device token updated successfully."}, status=status.HTTP_200_OK)
+
