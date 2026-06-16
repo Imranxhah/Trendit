@@ -356,11 +356,12 @@ class UpdateDeviceTokenView(APIView):
             return Response({"error": "fcm_token is required."}, status=status.HTTP_400_BAD_REQUEST)
 
         # Update or create the device record
+        # Lookup by device_id alone (it's globally unique).
+        # If a different user logs in on the same device, reassign it.
         from apps.users.models import UserDevice
         device, created = UserDevice.objects.update_or_create(
-            user=request.user,
             device_id=device_id,
-            defaults={'fcm_token': fcm_token, 'is_active': True}
+            defaults={'user': request.user, 'fcm_token': fcm_token, 'is_active': True}
         )
 
         return Response({"message": "Device token updated successfully."}, status=status.HTTP_200_OK)
