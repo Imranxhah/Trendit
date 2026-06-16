@@ -1,4 +1,5 @@
 import logging
+import firebase_admin
 from firebase_admin import messaging
 from apps.users.models import UserDevice
 from django.conf import settings
@@ -10,8 +11,17 @@ def send_push_notification(user, title, body, data=None):
     Sends a push notification to all active devices of a given user.
     `data` is a dictionary of custom key-value pairs (e.g., {"type": "follow", "target_id": "123"}).
     """
+    # Guard: check if Firebase Admin SDK was initialized
+    if not firebase_admin._apps:
+        logger.error("Firebase Admin SDK is NOT initialized. Cannot send push notifications. "
+                      "Check FIREBASE_CREDENTIALS in .env and ensure the file exists.")
+        return
+
     if data is None:
         data = {}
+
+    # Add click_action so Android routes notification taps to the Flutter activity
+    data['click_action'] = 'FLUTTER_NOTIFICATION_CLICK'
 
     # Ensure all data values are strings (FCM requirement)
     stringified_data = {str(k): str(v) for k, v in data.items()}
@@ -24,6 +34,17 @@ def send_push_notification(user, title, body, data=None):
         return
 
     tokens = list(devices.values_list('fcm_token', flat=True))
+    logger.info(f"Sending FCM to {len(tokens)} device(s) for user {user.username}")
+    
+    # Build Android-specific config to ensure high priority delivery
+    android_config = messaging.AndroidConfig(
+        priority='high',
+        notification=messaging.AndroidNotification(
+            click_action='FLUTTER_NOTIFICATION_CLICK',
+            priority='high',
+            default_sound=True,
+        ),
+    )
     
     # We can use messaging.MulticastMessage to send to multiple tokens at once
     message = messaging.MulticastMessage(
@@ -32,8 +53,10 @@ def send_push_notification(user, title, body, data=None):
             body=body,
         ),
         data=stringified_data,
+        android=android_config,
         tokens=tokens,
     )
+
 
     try:
         response = messaging.send_each_for_multicast(message)
