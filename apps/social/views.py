@@ -58,7 +58,8 @@ class FollowView(APIView):
             user=target,
             title="New Follower",
             body=f"{request.user.username} started following you.",
-            data={"type": "follow", "target_id": str(request.user.id)}
+            data={"type": "follow", "target_id": str(request.user.id)},
+            trigger_user=request.user
         )
 
         return Response({"message": f"You are now following {target.username}."}, status=status.HTTP_201_CREATED)
@@ -153,7 +154,8 @@ class SendCloseBuddyRequestView(generics.CreateAPIView):
             user=cbr.receiver,
             title="Close Buddy Request",
             body=f"{self.request.user.username} sent you a close buddy request.",
-            data={"type": "close_buddy_request", "target_id": str(self.request.user.id)}
+            data={"type": "close_buddy_request", "target_id": str(self.request.user.id), "request_id": str(cbr.id)},
+            trigger_user=self.request.user
         )
 
 class RespondCloseBuddyRequestView(APIView):
@@ -207,7 +209,8 @@ class RespondCloseBuddyRequestView(APIView):
                 user=cbr.sender,
                 title="Request Accepted",
                 body=f"{request.user.username} accepted your close buddy request.",
-                data={"type": "close_buddy_accepted", "target_id": str(request.user.id)}
+                data={"type": "close_buddy_accepted", "target_id": str(request.user.id)},
+                trigger_user=request.user
             )
 
         return Response({"message": f"Close buddy request {action}."}, status=status.HTTP_200_OK)
@@ -361,11 +364,17 @@ class PostApprovalCreateView(generics.CreateAPIView):
             content_type=ContentType.objects.get_for_model(Post),
             object_id=post.id
         )
+        post_thumbnail = getattr(post, 'thumbnail', None)
+        data_payload = {"type": "post_approval", "target_id": str(post.id)}
+        if post_thumbnail and hasattr(post_thumbnail, 'url'):
+            data_payload['post_image'] = post_thumbnail.url
+
         send_push_notification(
             user=post.author,
             title="Post Approved",
             body=f"{user.username} approved your recent post.",
-            data={"type": "post_approval", "target_id": str(post.id)}
+            data=data_payload,
+            trigger_user=user
         )
 
 
@@ -397,6 +406,23 @@ class VoteCreateView(generics.CreateAPIView):
                 user=user,
                 post=post_obj,
                 defaults={'value': value}
+            )
+
+        if post_obj.author != user:
+            # Trigger notification
+            Notification.objects.get_or_create(
+                recipient=post_obj.author,
+                actor=user,
+                verb='rated your post',
+                content_type=ContentType.objects.get_for_model(Post),
+                object_id=post_obj.id
+            )
+            send_push_notification(
+                user=post_obj.author,
+                title="New Rating",
+                body=f"{user.username} rated your post.",
+                data={"type": "like", "target_id": str(post_obj.id)},
+                trigger_user=user
             )
 
         # Return full updated post data to help frontend sync state (avg_rating, etc.)

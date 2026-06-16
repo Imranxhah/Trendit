@@ -6,9 +6,9 @@ from django.conf import settings
 
 logger = logging.getLogger(__name__)
 
-def send_push_notification(user, title, body, data=None):
+def send_push_notification(user, title, body, data=None, trigger_user=None):
     """
-    Sends a push notification to all active devices of a given user.
+    Sends a silent data-only push notification to all active devices of a given user.
     `data` is a dictionary of custom key-value pairs (e.g., {"type": "follow", "target_id": "123"}).
     """
     # Guard: check if Firebase Admin SDK was initialized
@@ -20,11 +20,18 @@ def send_push_notification(user, title, body, data=None):
     if data is None:
         data = {}
 
-    # Add click_action so Android routes notification taps to the Flutter activity
+    # Pack title and body into data so Flutter can construct the notification locally
+    data['title'] = title
+    data['body'] = body
     data['click_action'] = 'FLUTTER_NOTIFICATION_CLICK'
+    
+    if trigger_user:
+        data['trigger_user_name'] = trigger_user.username
+        if trigger_user.profile_picture:
+            data['trigger_user_image'] = getattr(trigger_user.profile_picture, 'url', None)
 
     # Ensure all data values are strings (FCM requirement)
-    stringified_data = {str(k): str(v) for k, v in data.items()}
+    stringified_data = {str(k): str(v) for k, v in data.items() if v is not None}
 
     # Get all active devices for the user that have an FCM token
     devices = UserDevice.objects.filter(user=user, is_active=True).exclude(fcm_token__isnull=True).exclude(fcm_token="")
@@ -47,11 +54,8 @@ def send_push_notification(user, title, body, data=None):
     )
     
     # We can use messaging.MulticastMessage to send to multiple tokens at once
+    # Omit the `notification` argument entirely for a silent data payload.
     message = messaging.MulticastMessage(
-        notification=messaging.Notification(
-            title=title,
-            body=body,
-        ),
         data=stringified_data,
         android=android_config,
         tokens=tokens,
