@@ -45,6 +45,14 @@ class SubPostCreateView(generics.CreateAPIView):
     def perform_create(self, serializer):
         serializer.save(author=self.request.user)
 
+class SubPostDetailView(generics.RetrieveUpdateDestroyAPIView):
+    serializer_class = SubPostSerializer
+    permission_classes = [permissions.IsAuthenticated, IsAuthorOrReadOnly]
+
+    def get_queryset(self):
+        user = self.request.user
+        return SubPost.objects.with_annotations(user)
+
 class PostFeedView(generics.ListAPIView):
     serializer_class = PostSerializer
     permission_classes = [permissions.AllowAny]
