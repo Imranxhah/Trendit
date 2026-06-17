@@ -89,13 +89,7 @@ class UserPostListView(generics.ListAPIView):
             
         return queryset.order_by('-created_at')
 
-class IsAuthorOrReadOnly(permissions.BasePermission):
-    def has_object_permission(self, request, view, obj):
-        # Allow safe methods (GET, HEAD, OPTIONS)
-        if request.method in permissions.SAFE_METHODS:
-            return True
-        # Restricted to author for PATCH, PUT, DELETE
-        return obj.author == request.user
+
 
 import cloudinary.uploader
 import time
