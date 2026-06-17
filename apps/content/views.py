@@ -15,6 +15,14 @@ from .models import Post, Category, SubPost
 from .serializers import PostSerializer, CategorySerializer, SubPostSerializer
 from apps.social.models import Vote, Favorite
 
+class IsAuthorOrReadOnly(permissions.BasePermission):
+    def has_object_permission(self, request, view, obj):
+        # Allow safe methods (GET, HEAD, OPTIONS)
+        if request.method in permissions.SAFE_METHODS:
+            return True
+        # Restricted to author for PATCH, PUT, DELETE
+        return obj.author == request.user
+
 class FeedCursorPagination(CursorPagination):
     """
     Cursor-based pagination for the main feed.
