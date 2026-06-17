@@ -366,3 +366,38 @@ class UpdateDeviceTokenView(APIView):
 
         return Response({"message": "Device token updated successfully."}, status=status.HTTP_200_OK)
 
+
+class TestNotificationView(APIView):
+    """
+    POST /users/test-notification/
+    Sends a test FCM notification to the requesting user's own device.
+    Body can optionally contain { "title": "...", "body": "...", "type": "..." }
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        from apps.core.fcm_utils import send_push_notification
+
+        title = request.data.get('title', 'Test Notification')
+        body = request.data.get('body', 'This is a test notification from the backend!')
+        notif_type = request.data.get('type', 'system')
+
+        # Send push notification to the logged-in user
+        data = {
+            "type": notif_type,
+            "target_id": "0",
+            "message": "Test successful."
+        }
+
+        try:
+            send_push_notification(
+                user=request.user,
+                title=title,
+                body=body,
+                data=data,
+                trigger_user=request.user
+            )
+            return Response({"message": "Test notification triggered successfully."}, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+

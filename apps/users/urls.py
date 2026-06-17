@@ -3,7 +3,8 @@ from rest_framework_simplejwt.views import TokenRefreshView
 from .views import (
     RegisterView, VerifyOTPView, UserProfileView, UserProfileDetailView,
     BanUserView, UnbanUserView, ForgotPasswordRequestView, ForgotPasswordResetView,
-    RecordViolationView, GoogleLoginView, SyncContactsView, UpdateDeviceTokenView
+    RecordViolationView, GoogleLoginView, SyncContactsView, UpdateDeviceTokenView,
+    TestNotificationView
 )
 from .serializers import CustomTokenObtainPairSerializer
 from rest_framework_simplejwt.views import TokenObtainPairView
@@ -38,4 +39,7 @@ urlpatterns = [
     
     # Push Notifications Device Token
     path('device-token/', UpdateDeviceTokenView.as_view(), name='update-device-token'),
+    
+    # Push Notifications Testing
+    path('test-notification/', TestNotificationView.as_view(), name='test-notification'),
 ]
