@@ -45,12 +45,16 @@ class SubPostSerializer(serializers.ModelSerializer):
     author_username = serializers.ReadOnlyField(source='author.username')
     author_profile_picture = serializers.ImageField(source='author.profile_picture', read_only=True)
     media_file = serializers.SerializerMethodField()
+    avg_rating = serializers.FloatField(read_only=True)
+    vote_count = serializers.IntegerField(read_only=True)
+    user_rating = serializers.IntegerField(read_only=True)
 
     class Meta:
         model = SubPost
         fields = [
             'id', 'parent_post', 'author', 'author_username', 'author_profile_picture', 
-            'media_file', 'caption', 'aspect_ratio', 'duration', 'size', 'created_at'
+            'media_file', 'caption', 'aspect_ratio', 'duration', 'size', 'created_at',
+            'avg_rating', 'vote_count', 'user_rating'
         ]
         read_only_fields = ['author', 'created_at']
 

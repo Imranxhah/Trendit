@@ -3,17 +3,18 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from django.shortcuts import get_object_or_404
 from django.db.models import Q
-from .models import Follow, Buddy, CloseBuddy, CloseBuddyRequest, PostApproval, Vote, Favorite
+from .models import Follow, Buddy, CloseBuddy, CloseBuddyRequest, PostApproval, Vote, Favorite, SubPostVote
 from .serializers import (
     FollowSerializer, BuddySerializer,
     CloseBuddyRequestSerializer, CloseBuddyRespondSerializer,
     CloseBuddySerializer, ReverseCloseBuddySerializer,
     PostApprovalSerializer, VoteSerializer,
-    FavoriteSerializer, UserMinimalSerializer, UserSearchSerializer
+    FavoriteSerializer, UserMinimalSerializer, UserSearchSerializer,
+    SubPostVoteSerializer
 )
 from django.contrib.auth import get_user_model
-from apps.content.models import Post
-from apps.content.serializers import PostSerializer
+from apps.content.models import Post, SubPost
+from apps.content.serializers import PostSerializer, SubPostSerializer
 from apps.users.permissions import IsProfileComplete
 from apps.core.fcm_utils import send_push_notification
 from apps.core.models import Notification
@@ -434,6 +435,53 @@ class VoteCreateView(generics.CreateAPIView):
         
         return Response(data, status=status.HTTP_201_CREATED)
 
+
+class SubPostVoteCreateView(generics.CreateAPIView):
+    """
+    POST /api/social/vote-subpost/
+    Body: { "sub_post": <sub_post_id>, "value": <1-5> }
+    """
+    serializer_class = SubPostVoteSerializer
+    permission_classes = [permissions.IsAuthenticated, IsProfileComplete]
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        sub_post_obj = serializer.validated_data['sub_post']
+        value = serializer.validated_data['value']
+        user = request.user
+
+        with transaction.atomic():
+            SubPostVote.objects.update_or_create(
+                user=user,
+                sub_post=sub_post_obj,
+                defaults={'value': value}
+            )
+
+        if sub_post_obj.author != user:
+            Notification.objects.get_or_create(
+                recipient=sub_post_obj.author,
+                actor=user,
+                verb='rated your comment',
+                content_type=ContentType.objects.get_for_model(SubPost),
+                object_id=sub_post_obj.id
+            )
+            send_push_notification(
+                user=sub_post_obj.author,
+                title="New Rating",
+                body=f"{user.username} rated your comment.",
+                data={"type": "like", "target_id": str(sub_post_obj.parent_post.id)},
+                trigger_user=user
+            )
+
+        updated_sub_post = SubPost.objects.with_annotations(user).get(id=sub_post_obj.id)
+        sub_post_serializer = SubPostSerializer(updated_sub_post, context={'request': request})
+        
+        data = sub_post_serializer.data
+        data['message'] = "Vote recorded successfully."
+        
+        return Response(data, status=status.HTTP_201_CREATED)
 
 class FavoriteToggleView(APIView):
     """

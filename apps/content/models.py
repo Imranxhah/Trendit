@@ -45,6 +45,8 @@ class PostQuerySet(models.QuerySet):
                 is_favorited=Value(False, output_field=models.BooleanField())
             )
 
+        from django.db.models import Prefetch
+
         return queryset.annotate(
             avg_rating=Subquery(avg_rating_sq),
             vote_count=Coalesce(Subquery(vote_count_sq), Value(0)),
@@ -58,7 +60,7 @@ class PostQuerySet(models.QuerySet):
             # Eliminates the N+1 on the nested SubPostSerializer list field.
             # Also pre-fetches sub_post authors so SubPostSerializer's
             # author_username / author_profile_picture fields don't hit the DB per row.
-            'sub_posts',
+            Prefetch('sub_posts', queryset=SubPost.objects.with_annotations(user)),
             'sub_posts__author',
         )
 
@@ -122,6 +124,37 @@ class Post(models.Model):
     def __str__(self):
         return f"{self.author.username} - {self.created_at}"
 
+class SubPostQuerySet(models.QuerySet):
+    def with_annotations(self, user=None):
+        from apps.social.models import SubPostVote
+        
+        votes_sq = SubPostVote.objects.filter(sub_post=OuterRef('pk'))
+        avg_rating_sq = votes_sq.values('sub_post').annotate(a=Avg('value')).values('a')
+        vote_count_sq = votes_sq.values('sub_post').annotate(c=Count('*')).values('c')
+
+        queryset = self
+        if user and user.is_authenticated:
+            user_vote = SubPostVote.objects.filter(sub_post=OuterRef('pk'), user=user).values('value')
+            queryset = queryset.annotate(
+                user_rating=Subquery(user_vote[:1])
+            )
+        else:
+            queryset = queryset.annotate(
+                user_rating=Value(None, output_field=models.IntegerField())
+            )
+
+        return queryset.annotate(
+            avg_rating=Subquery(avg_rating_sq),
+            vote_count=Coalesce(Subquery(vote_count_sq), Value(0))
+        )
+
+class SubPostManager(models.Manager):
+    def get_queryset(self):
+        return SubPostQuerySet(self.model, using=self._db)
+
+    def with_annotations(self, user=None):
+        return self.get_queryset().with_annotations(user)
+
 class SubPost(models.Model):
     """
     Represents a media-based reply to a main Post (Parent-Child relationship).
@@ -135,6 +168,8 @@ class SubPost(models.Model):
     size = models.PositiveBigIntegerField(null=True, blank=True, help_text="Size in bytes")
     created_at = models.DateTimeField(auto_now_add=True)
     is_media_deleted = models.BooleanField(default=False)
+
+    objects = SubPostManager()
 
     def clean(self):
         # 1. Enforce Upload Window

@@ -1,6 +1,6 @@
 from django.db import models
 from django.conf import settings
-from apps.content.models import Post
+from apps.content.models import Post, SubPost
 from django.core.exceptions import ValidationError
 
 User = settings.AUTH_USER_MODEL
@@ -114,6 +114,15 @@ class Vote(models.Model):
 
     class Meta:
         unique_together = ('post', 'user')
+
+
+class SubPostVote(models.Model):
+    sub_post = models.ForeignKey(SubPost, on_delete=models.CASCADE, related_name='votes')
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='given_subpost_votes')
+    value = models.IntegerField(choices=[(i, i) for i in range(1, 6)])
+
+    class Meta:
+        unique_together = ('sub_post', 'user')
 
 
 class Favorite(models.Model):

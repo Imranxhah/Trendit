@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Follow, Buddy, CloseBuddy, CloseBuddyRequest, PostApproval, Vote, Favorite
+from .models import Follow, Buddy, CloseBuddy, CloseBuddyRequest, PostApproval, Vote, Favorite, SubPostVote
 from django.contrib.auth import get_user_model
 
 User = get_user_model()
@@ -122,6 +122,11 @@ class VoteSerializer(serializers.ModelSerializer):
         fields = ['id', 'post', 'user', 'value']
         read_only_fields = ['user']
 
+class SubPostVoteSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SubPostVote
+        fields = ['id', 'sub_post', 'user', 'value']
+        read_only_fields = ['user']
 
 class FavoriteSerializer(serializers.ModelSerializer):
     class Meta:
