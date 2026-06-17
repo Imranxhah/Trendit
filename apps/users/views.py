@@ -401,3 +401,34 @@ class TestNotificationView(APIView):
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+class FirebaseCustomTokenView(APIView):
+    """
+    GET /users/firebase-token/
+    Generates a Firebase Custom Token for the currently authenticated user.
+    The Flutter app uses this token to authenticate with Firebase Auth and access Firestore directly.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        import firebase_admin
+        from firebase_admin import auth
+        
+        # Ensure Firebase admin is initialized
+        if not firebase_admin._apps:
+            return Response({"error": "Firebase Admin SDK is not initialized on the backend."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            
+        try:
+            # We use the user's ID as the Firebase UID
+            uid = str(request.user.id)
+            
+            # Generate the custom token
+            custom_token = auth.create_custom_token(uid)
+            
+            # auth.create_custom_token returns bytes, so decode it to string
+            if isinstance(custom_token, bytes):
+                custom_token = custom_token.decode('utf-8')
+                
+            return Response({"firebase_token": custom_token}, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+

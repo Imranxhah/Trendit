@@ -4,7 +4,7 @@ from .views import (
     RegisterView, VerifyOTPView, UserProfileView, UserProfileDetailView,
     BanUserView, UnbanUserView, ForgotPasswordRequestView, ForgotPasswordResetView,
     RecordViolationView, GoogleLoginView, SyncContactsView, UpdateDeviceTokenView,
-    TestNotificationView
+    TestNotificationView, FirebaseCustomTokenView
 )
 from .serializers import CustomTokenObtainPairSerializer
 from rest_framework_simplejwt.views import TokenObtainPairView
@@ -42,4 +42,7 @@ urlpatterns = [
     
     # Push Notifications Testing
     path('test-notification/', TestNotificationView.as_view(), name='test-notification'),
+    
+    # Firebase Custom Token
+    path('firebase-token/', FirebaseCustomTokenView.as_view(), name='firebase-token'),
 ]
