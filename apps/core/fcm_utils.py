@@ -46,11 +46,6 @@ def send_push_notification(user, title, body, data=None, trigger_user=None):
     # Build Android-specific config to ensure high priority delivery
     android_config = messaging.AndroidConfig(
         priority='high',
-        notification=messaging.AndroidNotification(
-            click_action='FLUTTER_NOTIFICATION_CLICK',
-            priority='high',
-            default_sound=True,
-        ),
     )
     
     # We can use messaging.MulticastMessage to send to multiple tokens at once
