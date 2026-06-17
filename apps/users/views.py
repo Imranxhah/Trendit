@@ -432,3 +432,40 @@ class FirebaseCustomTokenView(APIView):
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+class SendChatNotificationView(APIView):
+    """
+    POST /users/notify-chat/
+    Triggers an FCM push notification to the receiver for a new chat message.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        from apps.core.fcm_utils import send_push_notification
+        
+        receiver_id = request.data.get('receiver_id')
+        message_text = request.data.get('message_text')
+        room_id = request.data.get('room_id')
+
+        if not receiver_id or not message_text or not room_id:
+            return Response({'error': 'Missing parameters'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            receiver = User.objects.get(id=receiver_id)
+        except User.DoesNotExist:
+            return Response({'error': 'Receiver not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        title = f"New message from {request.user.get_full_name() or request.user.username}"
+        
+        send_push_notification(
+            user=receiver,
+            title=title,
+            body=message_text,
+            data={
+                "type": "chat_message",
+                "room_id": str(room_id),
+                "sender_id": str(request.user.id)
+            },
+            trigger_user=request.user
+        )
+
+        return Response({'status': 'success', 'message': 'Notification sent'}, status=status.HTTP_200_OK)
