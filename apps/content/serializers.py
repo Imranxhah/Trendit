@@ -76,7 +76,15 @@ class SubPostSerializer(serializers.ModelSerializer):
 class PostSerializer(serializers.ModelSerializer):
     author_username = serializers.ReadOnlyField(source='author.username')
     author_profile_picture = serializers.ImageField(source='author.profile_picture', read_only=True)
-    category_name = serializers.ReadOnlyField(source='category.name')
+    categories = CategorySerializer(many=True, read_only=True)
+    category_ids = serializers.PrimaryKeyRelatedField(
+        queryset=Category.objects.all(),
+        many=True,
+        write_only=True,
+        source='categories',
+        required=False,
+    )
+    category_names = serializers.SerializerMethodField()
     avg_rating = serializers.FloatField(read_only=True)
     vote_count = serializers.IntegerField(read_only=True)
     user_rating = serializers.IntegerField(read_only=True)
@@ -89,7 +97,8 @@ class PostSerializer(serializers.ModelSerializer):
         model = Post
         fields = [
             'id', 'author', 'author_username', 'author_profile_picture', 
-            'category', 'category_name', 'media_file', 'caption', 'aspect_ratio', 
+            'categories', 'category_ids', 'category_names',
+            'media_file', 'caption', 'aspect_ratio', 
             'duration', 'size', 'status', 'created_at', 'is_media_deleted', 
             'avg_rating', 'vote_count', 'user_rating', 'favorite_count', 
             'is_favorited', 'sub_posts'
@@ -99,20 +108,32 @@ class PostSerializer(serializers.ModelSerializer):
     def get_media_file(self, obj):
         return _generate_media_url(obj.media_file)
 
+    def get_category_names(self, obj):
+        return [cat.name for cat in obj.categories.all()]
+
     def create(self, validated_data):
         validated_data['author'] = self.context['request'].user
+        categories = validated_data.pop('categories', [])
         media_file = self.initial_data.get('media_file')
         if media_file:
             validated_data['media_file'] = media_file
         try:
-            return super().create(validated_data)
+            post = super().create(validated_data)
+            if categories:
+                post.categories.set(categories)
+            return post
         except DjangoValidationError as e:
             if hasattr(e, 'message_dict') and e.message_dict:
                 raise serializers.ValidationError(e.message_dict)
             raise serializers.ValidationError({'detail': e.messages})
 
     def update(self, instance, validated_data):
+        categories = validated_data.pop('categories', None)
         media_file = self.initial_data.get('media_file')
         if media_file is not None:
             instance.media_file = media_file
-        return super().update(instance, validated_data)
+        instance = super().update(instance, validated_data)
+        if categories is not None:
+            instance.categories.set(categories)
+        return instance
+

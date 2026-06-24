@@ -9,9 +9,10 @@ class CategoryAdmin(ModelAdmin):
 
 @admin.register(Post)
 class PostAdmin(ModelAdmin):
-    list_display = ('author', 'category', 'status', 'created_at', 'is_media_deleted')
-    list_filter = ('status', 'is_media_deleted', 'category')
+    list_display = ('author', 'status', 'created_at', 'is_media_deleted')
+    list_filter = ('status', 'is_media_deleted', 'categories')
     search_fields = ('author__username', 'caption')
+    filter_horizontal = ('categories',)
 
 @admin.register(SubPost)
 class SubPostAdmin(ModelAdmin):

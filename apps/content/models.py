@@ -52,16 +52,16 @@ class PostQuerySet(models.QuerySet):
             vote_count=Coalesce(Subquery(vote_count_sq), Value(0)),
             favorite_count=Coalesce(Subquery(favorite_count_sq), Value(0))
         ).select_related(
-            # Eliminates per-row FK lookups for author.username,
-            # author.profile_picture, and category.name in PostSerializer.
+            # Eliminates per-row FK lookups for author.username
+            # and author.profile_picture in PostSerializer.
             'author',
-            'category',
         ).prefetch_related(
             # Eliminates the N+1 on the nested SubPostSerializer list field.
             # Also pre-fetches sub_post authors so SubPostSerializer's
             # author_username / author_profile_picture fields don't hit the DB per row.
             Prefetch('sub_posts', queryset=SubPost.objects.with_annotations(user)),
             'sub_posts__author',
+            'categories',
         )
 
 class PostManager(models.Manager):
@@ -80,7 +80,7 @@ class Post(models.Model):
     )
 
     author = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='posts')
-    category = models.ForeignKey(Category, on_delete=models.SET_NULL, null=True, related_name='posts')
+    categories = models.ManyToManyField(Category, blank=True, related_name='posts')
     media_file = CloudinaryField('media', null=True, blank=True)
     caption = models.TextField()
     aspect_ratio = models.FloatField(null=True, blank=True)
