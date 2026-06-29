@@ -89,12 +89,14 @@ class ProfileStatsTests(APITestCase):
         self.assertTrue(Profile.objects.filter(user=self.user).exists())
 
     def test_post_count_update(self):
-        Post.objects.create(author=self.user, category=self.category, caption="Post 1")
+        post = Post.objects.create(author=self.user, caption="Post 1")
+        post.categories.set([self.category])
         self.user.profile.refresh_from_db()
         self.assertEqual(self.user.profile.total_posts, 1)
 
     def test_rating_count_update(self):
-        post = Post.objects.create(author=self.user, category=self.category, caption="Post 1")
+        post = Post.objects.create(author=self.user, caption="Post 1")
+        post.categories.set([self.category])
         Vote.objects.create(post=post, user=self.user, value=5)
         self.user.profile.refresh_from_db()
         self.assertEqual(self.user.profile.total_ratings_received, 1)

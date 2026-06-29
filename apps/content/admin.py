@@ -4,7 +4,8 @@ from .models import Category, Post, SubPost
 
 @admin.register(Category)
 class CategoryAdmin(ModelAdmin):
-    list_display = ('name', 'slug')
+    list_display = ('name', 'slug', 'priority_status', 'priority_multiplier')
+    list_filter = ('priority_status',)
     search_fields = ('name',)
 
 @admin.register(Post)

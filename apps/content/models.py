@@ -4,13 +4,83 @@ from django.utils.text import slugify
 from django.core.exceptions import ValidationError
 from django.utils import timezone
 from apps.core.models import AppSettings
-from django.db.models import Avg, Count, OuterRef, Subquery, Exists, Value
+from django.db.models import Avg, Case, Count, ExpressionWrapper, F, FloatField, OuterRef, Subquery, Exists, Value, When
 from django.db.models.functions import Coalesce
 from cloudinary.models import CloudinaryField
 
+
+TRENDING_CONFIDENCE_VOTES = 12.0
+TRENDING_VOLUME_VOTES = 25.0
+TRENDING_FAVORITE_SATURATION = 10.0
+CATEGORY_PRIORITY_MULTIPLIERS = {
+    'punished': 0.5,
+    'normal': 1.0,
+    'trending': 2.0,
+}
+
+
+def calculate_trending_score(post, now=None):
+    """
+    Product ranking score for trending posts.
+
+    The score intentionally rewards rating quality only after enough users have
+    voted. This prevents a tiny perfect sample from beating a broadly validated
+    post, while still allowing excellent new content to rise as votes arrive.
+    """
+    if now is None:
+        now = timezone.now()
+
+    vote_count = int(getattr(post, 'vote_count', 0) or 0)
+    favorite_count = int(getattr(post, 'favorite_count', 0) or 0)
+    avg_rating = getattr(post, 'avg_rating', None)
+    category_multiplier = float(getattr(post, 'category_priority_multiplier', 1.0) or 1.0)
+
+    if vote_count <= 0 or avg_rating is None:
+        rating_quality = 0.0
+    else:
+        rating_quality = max(0.0, min(1.0, (float(avg_rating) - 1.0) / 4.0))
+
+    rating_confidence = vote_count / (vote_count + TRENDING_CONFIDENCE_VOTES)
+    rating_component = rating_quality * rating_confidence
+    vote_momentum = vote_count / (vote_count + TRENDING_VOLUME_VOTES)
+    favorite_momentum = favorite_count / (favorite_count + TRENDING_FAVORITE_SATURATION)
+
+    created_at = getattr(post, 'created_at', None)
+    if created_at:
+        age_hours = max((now - created_at).total_seconds() / 3600.0, 0.0)
+        recency = 1.0 / (1.0 + (age_hours / 72.0) ** 1.35)
+    else:
+        recency = 0.0
+
+    status_boost = 0.02 if getattr(post, 'status', None) == 'trending' else 0.0
+    score = (
+        0.58 * rating_component
+        + 0.22 * vote_momentum
+        + 0.10 * favorite_momentum
+        + 0.10 * recency
+        + status_boost
+    )
+    return round(score * 100.0 * category_multiplier, 6)
+
 class Category(models.Model):
+    PRIORITY_STATUS_CHOICES = (
+        ('punished', 'Punished'),
+        ('normal', 'Normal'),
+        ('trending', 'Trending'),
+    )
+
     name = models.CharField(max_length=100)
     slug = models.SlugField(unique=True, blank=True)
+    priority_status = models.CharField(
+        max_length=20,
+        choices=PRIORITY_STATUS_CHOICES,
+        default='normal',
+        help_text="Editorial weight used by the trending algorithm.",
+    )
+
+    @property
+    def priority_multiplier(self):
+        return CATEGORY_PRIORITY_MULTIPLIERS.get(self.priority_status, 1.0)
 
     def save(self, *args, **kwargs):
         if not self.slug:
@@ -64,12 +134,73 @@ class PostQuerySet(models.QuerySet):
             'categories',
         )
 
+    def with_trending_base_score(self, user=None):
+        queryset = self.with_annotations(user).annotate(
+            avg_rating_safe=Coalesce('avg_rating', Value(0.0), output_field=FloatField()),
+            category_priority_multiplier=Coalesce(
+                Avg(
+                    Case(
+                        When(categories__priority_status='punished', then=Value(CATEGORY_PRIORITY_MULTIPLIERS['punished'])),
+                        When(categories__priority_status='trending', then=Value(CATEGORY_PRIORITY_MULTIPLIERS['trending'])),
+                        default=Value(CATEGORY_PRIORITY_MULTIPLIERS['normal']),
+                        output_field=FloatField(),
+                    )
+                ),
+                Value(CATEGORY_PRIORITY_MULTIPLIERS['normal']),
+                output_field=FloatField(),
+            ),
+        )
+        queryset = queryset.annotate(
+            normalized_rating=Case(
+                When(
+                    vote_count__gt=0,
+                    then=ExpressionWrapper(
+                        (F('avg_rating_safe') - Value(1.0)) / Value(4.0),
+                        output_field=FloatField(),
+                    ),
+                ),
+                default=Value(0.0),
+                output_field=FloatField(),
+            ),
+            rating_confidence=ExpressionWrapper(
+                F('vote_count') * Value(1.0) / (F('vote_count') + Value(TRENDING_CONFIDENCE_VOTES)),
+                output_field=FloatField(),
+            ),
+            vote_momentum=ExpressionWrapper(
+                F('vote_count') * Value(1.0) / (F('vote_count') + Value(TRENDING_VOLUME_VOTES)),
+                output_field=FloatField(),
+            ),
+            favorite_momentum=ExpressionWrapper(
+                F('favorite_count') * Value(1.0) / (F('favorite_count') + Value(TRENDING_FAVORITE_SATURATION)),
+                output_field=FloatField(),
+            ),
+            manual_trending_boost=Case(
+                When(status='trending', then=Value(0.02)),
+                default=Value(0.0),
+                output_field=FloatField(),
+            ),
+        )
+        return queryset.annotate(
+            trending_base_score=ExpressionWrapper(
+                (
+                    Value(0.58) * F('normalized_rating') * F('rating_confidence')
+                    + Value(0.22) * F('vote_momentum')
+                    + Value(0.10) * F('favorite_momentum')
+                    + F('manual_trending_boost')
+                ) * Value(100.0) * F('category_priority_multiplier'),
+                output_field=FloatField(),
+            )
+        )
+
 class PostManager(models.Manager):
     def get_queryset(self):
         return PostQuerySet(self.model, using=self._db)
 
     def with_annotations(self, user=None):
         return self.get_queryset().with_annotations(user)
+
+    def with_trending_base_score(self, user=None):
+        return self.get_queryset().with_trending_base_score(user)
 
 class Post(models.Model):
     STATUS_CHOICES = (

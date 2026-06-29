@@ -13,19 +13,21 @@ class VoteTests(APITestCase):
             username="voter", 
             email="voter@example.com", 
             password="password123", 
-            is_verified=True
+            is_verified=True,
+            has_completed_profile=True,
         )
         self.author = User.objects.create_user(
             username="author", 
             email="author@example.com", 
-            password="password123"
+            password="password123",
+            has_completed_profile=True,
         )
         self.category = Category.objects.create(name="Test Category")
         self.post = Post.objects.create(
             author=self.author, 
-            category=self.category, 
             caption="Test Post"
         )
+        self.post.categories.set([self.category])
         self.client.force_authenticate(user=self.user)
         self.vote_url = reverse('vote')
 

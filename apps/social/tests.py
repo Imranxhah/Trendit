@@ -11,17 +11,18 @@ class SocialTests(APITestCase):
     def setUp(self):
         self.user = User.objects.create_user(
             username="me", email="me@ex.com", password="pass", 
-            is_verified=True, phone_number="+2348000000000"
+            is_verified=True, phone_number="+2348000000000", has_completed_profile=True
         )
         self.other_user = User.objects.create_user(
             username="friend", email="friend@ex.com", password="pass", 
-            phone_number="+2348000000001"
+            phone_number="+2348000000001", has_completed_profile=True
         )
         self.client.force_authenticate(user=self.user)
         
         self.category = Category.objects.create(name="Social")
         # Post by other user
-        self.other_post = Post.objects.create(author=self.other_user, category=self.category, caption="Other post")
+        self.other_post = Post.objects.create(author=self.other_user, caption="Other post")
+        self.other_post.categories.set([self.category])
 
     def make_mutual_buddies(self, user1, user2):
         # Establish mutual follows to trigger Buddy creation
@@ -60,7 +61,8 @@ class SocialTests(APITestCase):
 
     def test_restricted_approval(self):
         # 'friend' tries to approve 'me's post without being a close buddy
-        my_post = Post.objects.create(author=self.user, category=self.category, caption="My post")
+        my_post = Post.objects.create(author=self.user, caption="My post")
+        my_post.categories.set([self.category])
         self.client.force_authenticate(user=self.other_user)
         
         url = reverse('post-approval')
@@ -74,7 +76,8 @@ class SocialTests(APITestCase):
         self.make_mutual_buddies(self.user, self.other_user)
         CloseBuddy.objects.create(user=self.user, buddy=self.other_user)
         
-        my_post = Post.objects.create(author=self.user, category=self.category, caption="My post")
+        my_post = Post.objects.create(author=self.user, caption="My post")
+        my_post.categories.set([self.category])
         
         # 'friend' approves 'me's post
         self.client.force_authenticate(user=self.other_user)

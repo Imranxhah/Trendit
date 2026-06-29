@@ -674,6 +674,7 @@ This schema is used in all endpoints that return post data (feed, trending, deta
 | `user_rating` | int \| null | No | Annotated. The requesting user's own vote (1–5), or `null`. `null` for anonymous users. |
 | `favorite_count` | int | No | Annotated. Total number of times the post was favorited. |
 | `is_favorited` | bool | No | Annotated. `true` if the requesting user has favorited this post. `false` for anonymous users. |
+| `trending_score` | float | No | Present on trending feed responses. Final score after organic ranking and category priority multiplier. |
 | `sub_posts` | array | No | Array of SubPost objects (see below). |
 
 #### SubPost Object Schema
@@ -889,19 +890,22 @@ All posts where `is_media_deleted=False`, ordered by `-created_at` (newest first
 
 **`GET /api/content/trending/`**
 
-Returns the top 10 trending posts, ranked by rating and vote count.
+Returns the top 10 trending posts using the product trending algorithm.
 
 **Authentication Required:** No (anonymous access allowed)
 
 **Success Response — `200 OK` (`data` is an array of up to 10 Post Objects)**
 
 Filters: `status` is `"active"` or `"trending"`, `is_media_deleted=False`.
-Ordering: `-avg_rating`, then `-vote_count`, then `-created_at`.
+Ordering: highest `trending_score` first.
 
 **Notes:**
 
 - At most **10 posts** are returned.
 - Only publicly visible (active/trending) posts appear here.
+- `trending_score` balances rating quality, rating confidence, vote volume, favorites, recency, a small admin `"trending"` post-status boost, and category priority.
+- A small perfect sample is intentionally not allowed to outrank a much more validated strong post by raw average alone.
+- Category priority is an editorial multiplier: `"punished"` = `0.5`, `"normal"` = `1.0`, `"trending"` = `2.0`. For posts with multiple categories, the average category multiplier is used. Posts without categories use `1.0`.
 
 ---
 
@@ -986,6 +990,8 @@ Each object:
 | `id` | int | Category primary key. |
 | `name` | string | Category display name (e.g., `"Music"`, `"Dance"`). |
 | `slug` | string | URL-safe version of the name (e.g., `"music"`, `"dance"`). Auto-generated. |
+| `priority_status` | string | Editorial ranking status. One of: `"punished"`, `"normal"`, `"trending"`. |
+| `priority_multiplier` | float | Computed multiplier used by the trending algorithm: `0.5`, `1.0`, or `2.0`. |
 
 ---
 

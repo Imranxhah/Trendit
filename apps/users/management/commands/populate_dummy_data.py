@@ -63,11 +63,11 @@ class Command(BaseCommand):
             categories = Category.objects.first()
 
         for user in random.sample(users, 30): # 30 users create posts
-            Post.objects.create(
+            post = Post.objects.create(
                 author=user,
-                category=categories,
                 caption=f"Hello from {user.first_name}! This is a dummy post.",
                 status='active'
             )
+            post.categories.set([categories])
 
         self.stdout.write(self.style.SUCCESS("Database population complete!"))

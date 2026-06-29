@@ -196,7 +196,7 @@ This document provides a comprehensive detail of each endpoint provided by the T
 ### Get Trending Feed
 *   **URL:** `/api/content/trending/`
 *   **Method:** `GET`
-*   **Description:** Returns top "Active" or "Trending" posts.
+*   **Description:** Returns top "Active" or "Trending" posts ranked by `trending_score`, a confidence-weighted score based on rating quality, vote volume, favorites, recency, a small admin trending-status boost, and category priority (`punished=0.5`, `normal=1.0`, `trending=2.0`).
 
 ### Create Sub-Post (Reply)
 *   **URL:** `/api/content/subposts/`
@@ -211,6 +211,7 @@ This document provides a comprehensive detail of each endpoint provided by the T
 ### List Categories
 *   **URL:** `/api/content/categories/`
 *   **Method:** `GET`
+*   **Description:** Returns categories with `priority_status` and computed `priority_multiplier`, both used by the trending algorithm.
 
 ---
 

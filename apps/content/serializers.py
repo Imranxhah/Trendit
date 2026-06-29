@@ -37,9 +37,11 @@ def _generate_media_url(media_file):
 
 
 class CategorySerializer(serializers.ModelSerializer):
+    priority_multiplier = serializers.FloatField(read_only=True)
+
     class Meta:
         model = Category
-        fields = ['id', 'name', 'slug']
+        fields = ['id', 'name', 'slug', 'priority_status', 'priority_multiplier']
 
 class SubPostSerializer(serializers.ModelSerializer):
     author_username = serializers.ReadOnlyField(source='author.username')
@@ -90,6 +92,7 @@ class PostSerializer(serializers.ModelSerializer):
     user_rating = serializers.IntegerField(read_only=True)
     favorite_count = serializers.IntegerField(read_only=True)
     is_favorited = serializers.BooleanField(read_only=True)
+    trending_score = serializers.FloatField(read_only=True)
     sub_posts = SubPostSerializer(many=True, read_only=True)
     media_file = serializers.SerializerMethodField()
 
@@ -101,7 +104,7 @@ class PostSerializer(serializers.ModelSerializer):
             'media_file', 'caption', 'aspect_ratio', 
             'duration', 'size', 'status', 'created_at', 'is_media_deleted', 
             'avg_rating', 'vote_count', 'user_rating', 'favorite_count', 
-            'is_favorited', 'sub_posts'
+            'is_favorited', 'trending_score', 'sub_posts'
         ]
         read_only_fields = ['author', 'created_at', 'status']
 

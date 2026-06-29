@@ -1,7 +1,7 @@
 from rest_framework import generics, permissions, status
 from rest_framework.pagination import CursorPagination
 from rest_framework.response import Response
-from .models import Post, Category
+from .models import Post, Category, calculate_trending_score
 from .serializers import PostSerializer, CategorySerializer
 from apps.users.permissions import IsProfileComplete
 
@@ -38,13 +38,29 @@ class FeedCursorPagination(CursorPagination):
 class TrendingFeedView(generics.ListAPIView):
     serializer_class = PostSerializer
     permission_classes = [permissions.AllowAny]
+    candidate_limit = 250
+    result_limit = 10
 
     def get_queryset(self):
         user = self.request.user
-        return Post.objects.filter(
+        candidates = list(Post.objects.filter(
             status__in=['active', 'trending'],
             is_media_deleted=False
-        ).with_annotations(user).order_by('-avg_rating', '-vote_count', '-created_at')[:10]
+        ).with_trending_base_score(user).order_by('-trending_base_score', '-created_at')[:self.candidate_limit])
+
+        for post in candidates:
+            post.trending_score = calculate_trending_score(post)
+
+        return sorted(
+            candidates,
+            key=lambda post: (
+                post.trending_score,
+                post.vote_count or 0,
+                post.avg_rating or 0,
+                post.created_at,
+            ),
+            reverse=True,
+        )[:self.result_limit]
 
 class SubPostCreateView(generics.CreateAPIView):
     serializer_class = SubPostSerializer
