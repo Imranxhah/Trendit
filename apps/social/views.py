@@ -1,4 +1,5 @@
 from rest_framework import generics, permissions, status
+from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from django.shortcuts import get_object_or_404
@@ -24,6 +25,13 @@ from apps.core.models import Notification
 from django.contrib.contenttypes.models import ContentType
 
 User = get_user_model()
+
+
+class IsCommunityCreator(permissions.BasePermission):
+    message = "Only the community creator can manage this community."
+
+    def has_object_permission(self, request, view, obj):
+        return obj.creator_id == request.user.id
 
 
 # ─── Follow (One-way) ────────────────────────────────────────────────────────
@@ -578,6 +586,7 @@ class CommunityListCreateView(generics.ListCreateAPIView):
     """
     serializer_class = CommunitySerializer
     permission_classes = [permissions.IsAuthenticated, IsProfileComplete]
+    parser_classes = [JSONParser, FormParser, MultiPartParser]
 
     def get_queryset(self):
         return Community.objects.select_related('creator').annotate(
@@ -609,6 +618,29 @@ class CommunitySearchView(generics.ListAPIView):
         ).annotate(
             members_count=Count('memberships')
         ).order_by('name')[:30]
+
+
+class CommunityDetailView(generics.RetrieveUpdateDestroyAPIView):
+    """
+    GET    /api/social/communities/<community_id>/
+    PATCH  /api/social/communities/<community_id>/  Body: name/profile_picture
+    DELETE /api/social/communities/<community_id>/
+    Only the community creator can manage the community.
+    """
+    serializer_class = CommunitySerializer
+    permission_classes = [
+        permissions.IsAuthenticated,
+        IsProfileComplete,
+        IsCommunityCreator,
+    ]
+    parser_classes = [JSONParser, FormParser, MultiPartParser]
+    lookup_field = 'id'
+    lookup_url_kwarg = 'community_id'
+
+    def get_queryset(self):
+        return Community.objects.select_related('creator').annotate(
+            members_count=Count('memberships')
+        )
 
 
 class CommunityJoinView(APIView):

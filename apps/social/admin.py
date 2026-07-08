@@ -37,7 +37,7 @@ class VoteAdmin(ModelAdmin):
 
 @admin.register(Community)
 class CommunityAdmin(ModelAdmin):
-    list_display = ('name', 'creator', 'created_at')
+    list_display = ('name', 'creator', 'profile_picture', 'created_at')
     search_fields = ('name', 'creator__username')
 
 

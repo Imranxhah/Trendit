@@ -20,7 +20,8 @@ from .views import (
 
     # Extra
     UnapprovedBuddyPostsView, UserSearchView,
-    CommunityListCreateView, CommunitySearchView, CommunityJoinView,
+    CommunityListCreateView, CommunitySearchView, CommunityDetailView,
+    CommunityJoinView,
 )
 
 urlpatterns = [
@@ -59,5 +60,6 @@ urlpatterns = [
     path('users/search/', UserSearchView.as_view(), name='user-search'),
     path('communities/', CommunityListCreateView.as_view(), name='community-list-create'),
     path('communities/search/', CommunitySearchView.as_view(), name='community-search'),
+    path('communities/<int:community_id>/', CommunityDetailView.as_view(), name='community-detail'),
     path('communities/<int:community_id>/join/', CommunityJoinView.as_view(), name='community-join'),
 ]

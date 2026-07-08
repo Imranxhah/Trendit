@@ -139,6 +139,11 @@ class Favorite(models.Model):
 
 class Community(models.Model):
     name = models.CharField(max_length=100, unique=True)
+    profile_picture = models.ImageField(
+        upload_to='community_pics/',
+        null=True,
+        blank=True
+    )
     creator = models.ForeignKey(
         User,
         on_delete=models.CASCADE,

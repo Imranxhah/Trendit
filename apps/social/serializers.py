@@ -19,12 +19,14 @@ class CommunitySerializer(serializers.ModelSerializer):
     members_count = serializers.SerializerMethodField()
     followers_count = serializers.SerializerMethodField()
     is_member = serializers.SerializerMethodField()
+    is_creator = serializers.SerializerMethodField()
 
     class Meta:
         model = Community
         fields = [
-            'id', 'name', 'creator', 'creator_details', 'members_count',
-            'followers_count', 'is_member', 'created_at'
+            'id', 'name', 'profile_picture', 'creator', 'creator_details',
+            'members_count', 'followers_count', 'is_member', 'is_creator',
+            'created_at'
         ]
         read_only_fields = ['creator', 'created_at']
 
@@ -42,6 +44,14 @@ class CommunitySerializer(serializers.ModelSerializer):
                 user=request.user
             ).exists()
         return False
+
+    def get_is_creator(self, obj):
+        request = self.context.get('request')
+        return bool(
+            request
+            and request.user.is_authenticated
+            and obj.creator_id == request.user.id
+        )
 
     def get_members_count(self, obj):
         annotated_count = getattr(obj, 'members_count', None)
