@@ -1,5 +1,8 @@
 from rest_framework import serializers
-from .models import Follow, Buddy, CloseBuddy, CloseBuddyRequest, PostApproval, Vote, Favorite, SubPostVote
+from .models import (
+    Follow, Buddy, CloseBuddy, CloseBuddyRequest, PostApproval, Vote, Favorite,
+    SubPostVote, Community, CommunityMembership
+)
 from django.contrib.auth import get_user_model
 
 User = get_user_model()
@@ -9,6 +12,45 @@ class UserMinimalSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ['id', 'username', 'email', 'first_name', 'last_name', 'profile_picture']
+
+
+class CommunitySerializer(serializers.ModelSerializer):
+    creator_details = UserMinimalSerializer(source='creator', read_only=True)
+    members_count = serializers.SerializerMethodField()
+    followers_count = serializers.SerializerMethodField()
+    is_member = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Community
+        fields = [
+            'id', 'name', 'creator', 'creator_details', 'members_count',
+            'followers_count', 'is_member', 'created_at'
+        ]
+        read_only_fields = ['creator', 'created_at']
+
+    def validate_name(self, value):
+        name = value.strip()
+        if not name:
+            raise serializers.ValidationError("Community name is required.")
+        return name
+
+    def get_is_member(self, obj):
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            return CommunityMembership.objects.filter(
+                community=obj,
+                user=request.user
+            ).exists()
+        return False
+
+    def get_members_count(self, obj):
+        annotated_count = getattr(obj, 'members_count', None)
+        if annotated_count is not None:
+            return annotated_count
+        return obj.memberships.count()
+
+    def get_followers_count(self, obj):
+        return self.get_members_count(obj)
 
 
 # ─── Follow (One-way) ────────────────────────────────────────────────────────

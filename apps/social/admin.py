@@ -1,6 +1,9 @@
 from django.contrib import admin
 from unfold.admin import ModelAdmin
-from .models import Follow, Buddy, CloseBuddy, CloseBuddyRequest, PostApproval, Vote
+from .models import (
+    Follow, Buddy, CloseBuddy, CloseBuddyRequest, PostApproval, Vote,
+    Community, CommunityMembership
+)
 
 @admin.register(Follow)
 class FollowAdmin(ModelAdmin):
@@ -30,3 +33,15 @@ class PostApprovalAdmin(ModelAdmin):
 @admin.register(Vote)
 class VoteAdmin(ModelAdmin):
     list_display = ('post', 'user', 'value')
+
+
+@admin.register(Community)
+class CommunityAdmin(ModelAdmin):
+    list_display = ('name', 'creator', 'created_at')
+    search_fields = ('name', 'creator__username')
+
+
+@admin.register(CommunityMembership)
+class CommunityMembershipAdmin(ModelAdmin):
+    list_display = ('community', 'user', 'joined_at')
+    search_fields = ('community__name', 'user__username')

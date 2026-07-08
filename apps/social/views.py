@@ -2,15 +2,18 @@ from rest_framework import generics, permissions, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from django.shortcuts import get_object_or_404
-from django.db.models import Q
-from .models import Follow, Buddy, CloseBuddy, CloseBuddyRequest, PostApproval, Vote, Favorite, SubPostVote
+from django.db.models import Count, Q
+from .models import (
+    Follow, Buddy, CloseBuddy, CloseBuddyRequest, PostApproval, Vote, Favorite,
+    SubPostVote, Community, CommunityMembership
+)
 from .serializers import (
     FollowSerializer, BuddySerializer,
     CloseBuddyRequestSerializer, CloseBuddyRespondSerializer,
     CloseBuddySerializer, ReverseCloseBuddySerializer,
     PostApprovalSerializer, VoteSerializer,
     FavoriteSerializer, UserMinimalSerializer, UserSearchSerializer,
-    SubPostVoteSerializer
+    SubPostVoteSerializer, CommunitySerializer
 )
 from django.contrib.auth import get_user_model
 from apps.content.models import Post, SubPost
@@ -563,6 +566,95 @@ class UserSearchView(generics.ListAPIView):
             Q(last_name__icontains=query),
             is_active=True
         ).exclude(id=self.request.user.id).order_by('username')[:30]
+
+
+# Community
+
+class CommunityListCreateView(generics.ListCreateAPIView):
+    """
+    GET  /api/social/communities/
+    POST /api/social/communities/  Body: { "name": "Community name" }
+    Creates a community and automatically joins the creator as the first member.
+    """
+    serializer_class = CommunitySerializer
+    permission_classes = [permissions.IsAuthenticated, IsProfileComplete]
+
+    def get_queryset(self):
+        return Community.objects.select_related('creator').annotate(
+            members_count=Count('memberships')
+        ).order_by('name')
+
+    def perform_create(self, serializer):
+        community = serializer.save(creator=self.request.user)
+        CommunityMembership.objects.get_or_create(
+            community=community,
+            user=self.request.user
+        )
+
+
+class CommunitySearchView(generics.ListAPIView):
+    """
+    GET /api/social/communities/search/?q=<query>
+    Search communities by community name.
+    """
+    serializer_class = CommunitySerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        query = self.request.query_params.get('q', '').strip()
+        if not query:
+            return Community.objects.none()
+        return Community.objects.select_related('creator').filter(
+            name__icontains=query
+        ).annotate(
+            members_count=Count('memberships')
+        ).order_by('name')[:30]
+
+
+class CommunityJoinView(APIView):
+    """
+    POST   /api/social/communities/<community_id>/join/  joins a community.
+    DELETE /api/social/communities/<community_id>/join/  leaves a community.
+    """
+    permission_classes = [permissions.IsAuthenticated, IsProfileComplete]
+
+    def post(self, request, community_id):
+        community = get_object_or_404(Community, id=community_id)
+        _, created = CommunityMembership.objects.get_or_create(
+            community=community,
+            user=request.user
+        )
+        serializer = CommunitySerializer(
+            Community.objects.select_related('creator').annotate(
+                members_count=Count('memberships')
+            ).get(id=community.id),
+            context={'request': request}
+        )
+        message = "Joined community successfully." if created else "You are already a member of this community."
+        data = serializer.data
+        data['message'] = message
+        return Response(data, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
+
+    def delete(self, request, community_id):
+        community = get_object_or_404(Community, id=community_id)
+        deleted, _ = CommunityMembership.objects.filter(
+            community=community,
+            user=request.user
+        ).delete()
+        if not deleted:
+            return Response(
+                {"error": "You are not a member of this community."},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        serializer = CommunitySerializer(
+            Community.objects.select_related('creator').annotate(
+                members_count=Count('memberships')
+            ).get(id=community.id),
+            context={'request': request}
+        )
+        data = serializer.data
+        data['message'] = "Left community successfully."
+        return Response(data, status=status.HTTP_200_OK)
 
 
 class RejectedCloseBuddyRequestsView(generics.ListAPIView):

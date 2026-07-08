@@ -135,3 +135,46 @@ class Favorite(models.Model):
 
     def __str__(self):
         return f"{self.user.username} favorited post {self.post.id}"
+
+
+class Community(models.Model):
+    name = models.CharField(max_length=100, unique=True)
+    creator = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='created_communities'
+    )
+    members = models.ManyToManyField(
+        User,
+        through='CommunityMembership',
+        related_name='communities'
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['name']
+        verbose_name_plural = 'Communities'
+
+    def __str__(self):
+        return self.name
+
+
+class CommunityMembership(models.Model):
+    community = models.ForeignKey(
+        Community,
+        on_delete=models.CASCADE,
+        related_name='memberships'
+    )
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='community_memberships'
+    )
+    joined_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('community', 'user')
+        ordering = ['-joined_at']
+
+    def __str__(self):
+        return f"{self.user} joined {self.community}"
