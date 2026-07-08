@@ -2,11 +2,11 @@ from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
 from django.contrib.auth import get_user_model
-from .models import Category, Post
+from .models import Category, Post, calculate_trending_score
 from apps.social.models import Community, CommunityMembership, Favorite, Vote
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.utils import timezone
-from datetime import timedelta
+from datetime import datetime, time, timedelta
 from django.core.management import call_command
 from unittest.mock import patch
 import os
@@ -24,6 +24,7 @@ class ContentTests(APITestCase):
         self.create_post_url = reverse('post-create')
         self.feed_url = reverse('post-feed')
         self.trending_url = reverse('post-trending')
+        self.previous_trends_url = reverse('previous-trends')
 
     def _response_items(self, response):
         body = response.data.get('data', response.data) if isinstance(response.data, dict) else response.data
@@ -296,6 +297,83 @@ class ContentTests(APITestCase):
 
         items = self._response_items(response)
         self.assertEqual([item['id'] for item in items], [member_post.id])
+
+    def test_previous_trends_returns_top_three_per_day_with_trending_algorithm(self):
+        target_day = timezone.localdate() - timedelta(days=1)
+        day_start = timezone.make_aware(
+            datetime.combine(target_day, time(hour=12)),
+            timezone.get_current_timezone(),
+        )
+        post_ids = []
+        posts = []
+        for index in range(4):
+            post = Post.objects.create(
+                author=self.user,
+                caption=f"Archive contender {index}",
+                status="active",
+            )
+            post.categories.set([self.category])
+            posts.append(post)
+            post_ids.append(post.id)
+        Post.objects.filter(id__in=post_ids).update(created_at=day_start)
+
+        voters = [
+            User.objects.create_user(
+                username=f"archivevoter{i}",
+                email=f"archivevoter{i}@ex.com",
+                password="pass",
+                is_verified=True,
+                phone_number=f"+2348050{i:06d}",
+            )
+            for i in range(12)
+        ]
+        vote_plan = [
+            (posts[0], [5] * 10),
+            (posts[1], [4] * 10),
+            (posts[2], [5] * 4),
+            (posts[3], [2] * 12),
+        ]
+        Vote.objects.bulk_create([
+            Vote(post=post, user=voters[index], value=value)
+            for post, values in vote_plan
+            for index, value in enumerate(values)
+        ])
+
+        response = self.client.get(self.previous_trends_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        items = self._response_items(response)
+        self.assertEqual(len(items), 7)
+        target_group = next(
+            item for item in items if item['date'] == target_day.isoformat()
+        )
+
+        day_end = timezone.make_aware(
+            datetime.combine(target_day + timedelta(days=1), time.min),
+            timezone.get_current_timezone(),
+        )
+        expected_posts = list(
+            Post.objects.filter(id__in=post_ids).with_trending_base_score(self.user)
+        )
+        for post in expected_posts:
+            post.trending_score = calculate_trending_score(post, now=day_end)
+        expected_ids = [
+            post.id for post in sorted(
+                expected_posts,
+                key=lambda post: (
+                    post.trending_score,
+                    post.vote_count or 0,
+                    post.avg_rating or 0,
+                    post.created_at,
+                ),
+                reverse=True,
+            )[:3]
+        ]
+
+        self.assertEqual(
+            [post['id'] for post in target_group['posts']],
+            expected_ids,
+        )
 
     @patch('cloudinary.uploader.upload')
     @patch('cloudinary.uploader.destroy')

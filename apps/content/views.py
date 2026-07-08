@@ -1,3 +1,6 @@
+from datetime import datetime, time as datetime_time, timedelta
+
+from django.utils import timezone
 from rest_framework import generics, permissions, status
 from rest_framework.pagination import CursorPagination
 from rest_framework.response import Response
@@ -33,6 +36,27 @@ class FeedCursorPagination(CursorPagination):
     page_size = 15
     ordering = '-created_at'
     cursor_query_param = 'cursor'
+
+
+def _rank_trending_queryset(queryset, user, *, candidate_limit, result_limit, score_now=None):
+    candidates = list(queryset.with_trending_base_score(user).order_by(
+        '-trending_base_score',
+        '-created_at',
+    )[:candidate_limit])
+
+    for post in candidates:
+        post.trending_score = calculate_trending_score(post, now=score_now)
+
+    return sorted(
+        candidates,
+        key=lambda post: (
+            post.trending_score,
+            post.vote_count or 0,
+            post.avg_rating or 0,
+            post.created_at,
+        ),
+        reverse=True,
+    )[:result_limit]
 
 
 class TrendingFeedView(generics.ListAPIView):
@@ -76,24 +100,55 @@ class TrendingFeedView(generics.ListAPIView):
             )
             queryset = queryset.filter(Exists(community_member))
 
-        candidates = list(queryset.with_trending_base_score(user).order_by(
-            '-trending_base_score',
-            '-created_at',
-        )[:self.candidate_limit])
+        return _rank_trending_queryset(
+            queryset,
+            user,
+            candidate_limit=self.candidate_limit,
+            result_limit=self.result_limit,
+        )
 
-        for post in candidates:
-            post.trending_score = calculate_trending_score(post)
 
-        return sorted(
-            candidates,
-            key=lambda post: (
-                post.trending_score,
-                post.vote_count or 0,
-                post.avg_rating or 0,
-                post.created_at,
-            ),
-            reverse=True,
-        )[:self.result_limit]
+class PreviousTrendsView(generics.GenericAPIView):
+    serializer_class = PostSerializer
+    permission_classes = [permissions.AllowAny]
+    days = 7
+    result_limit = 3
+    candidate_limit = 100
+
+    def get(self, request, *args, **kwargs):
+        user = request.user
+        current_day = timezone.localdate()
+        tz = timezone.get_current_timezone()
+        payload = []
+
+        for offset in range(self.days):
+            day = current_day - timedelta(days=offset)
+            day_start = timezone.make_aware(
+                datetime.combine(day, datetime_time.min),
+                tz,
+            )
+            day_end = day_start + timedelta(days=1)
+            queryset = Post.objects.filter(
+                status__in=['active', 'trending'],
+                is_media_deleted=False,
+                created_at__gte=day_start,
+                created_at__lt=day_end,
+            )
+
+            posts = _rank_trending_queryset(
+                queryset,
+                user,
+                candidate_limit=self.candidate_limit,
+                result_limit=self.result_limit,
+                score_now=day_end,
+            )
+            serializer = self.get_serializer(posts, many=True)
+            payload.append({
+                'date': day.isoformat(),
+                'posts': serializer.data,
+            })
+
+        return Response(payload)
 
 class SubPostCreateView(generics.CreateAPIView):
     serializer_class = SubPostSerializer
