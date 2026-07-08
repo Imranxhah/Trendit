@@ -13,7 +13,7 @@ from django.db.models import Avg, Count, OuterRef, Subquery, Exists, Value
 from django.db.models.functions import Coalesce
 from .models import Post, Category, SubPost
 from .serializers import PostSerializer, CategorySerializer, SubPostSerializer
-from apps.social.models import Vote, Favorite
+from apps.social.models import Vote, Favorite, CommunityMembership
 
 class IsAuthorOrReadOnly(permissions.BasePermission):
     def has_object_permission(self, request, view, obj):
@@ -41,12 +41,45 @@ class TrendingFeedView(generics.ListAPIView):
     candidate_limit = 250
     result_limit = 10
 
+    def _query_int(self, *names):
+        for name in names:
+            raw_value = self.request.query_params.get(name)
+            if raw_value in (None, ''):
+                continue
+            try:
+                value = int(raw_value)
+            except (TypeError, ValueError):
+                return None
+            return value if value > 0 else None
+        return None
+
     def get_queryset(self):
         user = self.request.user
-        candidates = list(Post.objects.filter(
+        queryset = Post.objects.filter(
             status__in=['active', 'trending'],
             is_media_deleted=False
-        ).with_trending_base_score(user).order_by('-trending_base_score', '-created_at')[:self.candidate_limit])
+        )
+
+        category_id = self._query_int('category', 'category_id')
+        if category_id is not None:
+            post_category = Post.categories.through.objects.filter(
+                post_id=OuterRef('pk'),
+                category_id=category_id,
+            )
+            queryset = queryset.filter(Exists(post_category))
+
+        community_id = self._query_int('community', 'community_id')
+        if community_id is not None:
+            community_member = CommunityMembership.objects.filter(
+                community_id=community_id,
+                user_id=OuterRef('author_id'),
+            )
+            queryset = queryset.filter(Exists(community_member))
+
+        candidates = list(queryset.with_trending_base_score(user).order_by(
+            '-trending_base_score',
+            '-created_at',
+        )[:self.candidate_limit])
 
         for post in candidates:
             post.trending_score = calculate_trending_score(post)

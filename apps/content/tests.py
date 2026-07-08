@@ -3,7 +3,7 @@ from rest_framework import status
 from rest_framework.test import APITestCase
 from django.contrib.auth import get_user_model
 from .models import Category, Post
-from apps.social.models import Favorite, Vote
+from apps.social.models import Community, CommunityMembership, Favorite, Vote
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.utils import timezone
 from datetime import timedelta
@@ -240,6 +240,62 @@ class ContentTests(APITestCase):
         items = self._response_items(response)
         self.assertEqual(items[0]['id'], normal_post.id)
         self.assertAlmostEqual(items[1]['trending_score'], items[0]['trending_score'] * 0.5, delta=0.01)
+
+    def test_trending_filters_by_category(self):
+        sports_category = Category.objects.create(name="Sports")
+        music_category = Category.objects.create(name="Music")
+
+        sports_post = Post.objects.create(
+            author=self.user,
+            caption="Sports post",
+            status="active",
+        )
+        sports_post.categories.set([sports_category])
+
+        music_post = Post.objects.create(
+            author=self.user,
+            caption="Music post",
+            status="active",
+        )
+        music_post.categories.set([music_category])
+
+        response = self.client.get(self.trending_url, {'category': sports_category.id})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        items = self._response_items(response)
+        self.assertEqual([item['id'] for item in items], [sports_post.id])
+
+    def test_trending_filters_by_author_community(self):
+        other_user = User.objects.create_user(
+            username="communityauthor",
+            email="communityauthor@ex.com",
+            password="pass",
+            is_verified=True,
+            phone_number="+234804000000",
+            has_completed_profile=True,
+        )
+        community = Community.objects.create(name="Design Circle", creator=self.user)
+        CommunityMembership.objects.create(community=community, user=self.user)
+
+        member_post = Post.objects.create(
+            author=self.user,
+            caption="Post from a community member",
+            status="active",
+        )
+        member_post.categories.set([self.category])
+
+        outsider_post = Post.objects.create(
+            author=other_user,
+            caption="Post outside the community",
+            status="active",
+        )
+        outsider_post.categories.set([self.category])
+
+        response = self.client.get(self.trending_url, {'community': community.id})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        items = self._response_items(response)
+        self.assertEqual([item['id'] for item in items], [member_post.id])
 
     @patch('cloudinary.uploader.upload')
     @patch('cloudinary.uploader.destroy')
