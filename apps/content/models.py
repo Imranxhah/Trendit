@@ -255,6 +255,41 @@ class Post(models.Model):
     def __str__(self):
         return f"{self.author.username} - {self.created_at}"
 
+
+class CaptionModerationEvent(models.Model):
+    DECISION_CHOICES = (
+        ('allow', 'Allow'),
+        ('warn', 'Warn'),
+        ('review', 'Review'),
+        ('block', 'Block'),
+        ('error', 'Error'),
+    )
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='caption_moderation_events',
+    )
+    post = models.ForeignKey(
+        Post,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='caption_moderation_events',
+    )
+    caption_fingerprint = models.CharField(max_length=64, db_index=True)
+    model_version = models.CharField(max_length=80)
+    decision = models.CharField(max_length=20, choices=DECISION_CHOICES, db_index=True)
+    scores = models.JSONField(default=dict)
+    reasons = models.JSONField(default=list)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.user_id} - {self.decision} - {self.model_version}"
+
 class SubPostQuerySet(models.QuerySet):
     def with_annotations(self, user=None):
         from apps.social.models import SubPostVote

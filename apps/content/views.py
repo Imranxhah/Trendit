@@ -7,10 +7,35 @@ from rest_framework.response import Response
 from .models import Post, Category, calculate_trending_score
 from .serializers import PostSerializer, CategorySerializer
 from apps.users.permissions import IsProfileComplete
+from .moderation import ModerationUnavailable, analyze_caption, record_moderation_event
 
 class PostCreateView(generics.CreateAPIView):
     serializer_class = PostSerializer
     permission_classes = [permissions.IsAuthenticated, IsProfileComplete]
+
+
+class CaptionModerationView(generics.GenericAPIView):
+    permission_classes = [permissions.IsAuthenticated, IsProfileComplete]
+
+    def post(self, request, *args, **kwargs):
+        caption = str(request.data.get('caption', '')).strip()
+        if not caption:
+            return Response({'caption': ['This field is required.']}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            result = analyze_caption(caption)
+        except ModerationUnavailable as error:
+            return Response(
+                {'status': 'error', 'code': 503, 'message': str(error), 'errors': None},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+        if result.decision == 'block':
+            record_moderation_event(request.user, result)
+        return Response({
+            'decision': result.decision,
+            'reasons': result.reasons,
+            'scores': result.scores,
+            'model_version': result.model_version,
+        })
 
 from django.db.models import Avg, Count, OuterRef, Subquery, Exists, Value
 from django.db.models.functions import Coalesce

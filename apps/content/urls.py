@@ -2,11 +2,12 @@ from django.urls import path
 from .views import (
     PostCreateView, PostFeedView, CategoryListView, 
     TrendingFeedView, PreviousTrendsView, SubPostCreateView, SubPostDetailView, UserPostListView, PostDetailView,
-    CloudinarySignatureView
+    CloudinarySignatureView, CaptionModerationView
 )
 
 urlpatterns = [
     path('posts/', PostCreateView.as_view(), name='post-create'),
+    path('moderate-caption/', CaptionModerationView.as_view(), name='caption-moderation'),
     path('posts/<int:pk>/', PostDetailView.as_view(), name='post-detail'),
     path('posts/user/<int:user_id>/', UserPostListView.as_view(), name='user-posts'),
     path('feed/', PostFeedView.as_view(), name='post-feed'),

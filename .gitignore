@@ -17,6 +17,7 @@ ENV/
 db.sqlite3
 /staticfiles/
 /media/
+/private_training_exports/
 
 # Environment variables
 .env

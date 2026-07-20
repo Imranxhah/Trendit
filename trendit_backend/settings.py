@@ -10,6 +10,18 @@ from decouple import config, Csv
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+CAPTION_MODERATION_ENABLED = config('CAPTION_MODERATION_ENABLED', default=True, cast=bool)
+_caption_moderation_asset_dir = Path(config(
+    'CAPTION_MODERATION_ASSET_DIR',
+    default=str(BASE_DIR / 'apps' / 'content' / 'moderation_assets'),
+))
+CAPTION_MODERATION_ASSET_DIR = (
+    _caption_moderation_asset_dir
+    if _caption_moderation_asset_dir.is_absolute()
+    else BASE_DIR / _caption_moderation_asset_dir
+)
+CAPTION_EXPORT_PSEUDONYM_KEY = config('CAPTION_EXPORT_PSEUDONYM_KEY', default='')
+
 
 # ─── Security ────────────────────────────────────────────────────────────────
 SECRET_KEY = config('SECRET_KEY', default='django-insecure-change-me-in-production')

@@ -1,7 +1,10 @@
 from rest_framework import serializers
 from .models import Category, Post, SubPost
 from django.core.exceptions import ValidationError as DjangoValidationError
+from django.conf import settings
 import cloudinary
+
+from .moderation import ModerationUnavailable, analyze_caption, record_moderation_event
 
 def _generate_media_url(media_file):
     if not media_file:
@@ -64,10 +67,26 @@ class SubPostSerializer(serializers.ModelSerializer):
         return _generate_media_url(obj.media_file)
 
     def create(self, validated_data):
+        moderation = self._moderate_caption(validated_data.get('caption', ''))
         media_file = self.initial_data.get('media_file')
         if media_file:
             validated_data['media_file'] = media_file
-        return super().create(validated_data)
+        sub_post = super().create(validated_data)
+        if moderation is not None:
+            record_moderation_event(self.context['request'].user, moderation)
+        return sub_post
+
+    def _moderate_caption(self, caption):
+        if not settings.CAPTION_MODERATION_ENABLED:
+            return None
+        try:
+            result = analyze_caption(caption)
+        except ModerationUnavailable as error:
+            raise serializers.ValidationError({'caption': {'code': 'moderation_unavailable', 'message': str(error)}})
+        if result.decision == 'block':
+            record_moderation_event(self.context['request'].user, result)
+            raise serializers.ValidationError({'caption': {'code': 'caption_blocked', 'message': 'This caption contains content that cannot be published.', 'reasons': result.reasons}})
+        return result
 
     def update(self, instance, validated_data):
         media_file = self.initial_data.get('media_file')
@@ -116,6 +135,7 @@ class PostSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         validated_data['author'] = self.context['request'].user
+        moderation = self._moderate_caption(validated_data.get('caption', ''))
         categories = validated_data.pop('categories', [])
         media_file = self.initial_data.get('media_file')
         if media_file:
@@ -124,6 +144,8 @@ class PostSerializer(serializers.ModelSerializer):
             post = super().create(validated_data)
             if categories:
                 post.categories.set(categories)
+            if moderation is not None:
+                record_moderation_event(self.context['request'].user, moderation, post)
             return post
         except DjangoValidationError as e:
             if hasattr(e, 'message_dict') and e.message_dict:
@@ -131,6 +153,11 @@ class PostSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({'detail': e.messages})
 
     def update(self, instance, validated_data):
+        moderation = None
+        if 'caption' in validated_data:
+            moderation = self._moderate_caption(validated_data['caption'])
+            if moderation is not None and moderation.decision == 'review':
+                validated_data['status'] = 'pending'
         categories = validated_data.pop('categories', None)
         media_file = self.initial_data.get('media_file')
         if media_file is not None:
@@ -138,5 +165,19 @@ class PostSerializer(serializers.ModelSerializer):
         instance = super().update(instance, validated_data)
         if categories is not None:
             instance.categories.set(categories)
+        if moderation is not None:
+            record_moderation_event(self.context['request'].user, moderation, instance)
         return instance
+
+    def _moderate_caption(self, caption):
+        if not settings.CAPTION_MODERATION_ENABLED:
+            return None
+        try:
+            result = analyze_caption(caption)
+        except ModerationUnavailable as error:
+            raise serializers.ValidationError({'caption': {'code': 'moderation_unavailable', 'message': str(error)}})
+        if result.decision == 'block':
+            record_moderation_event(self.context['request'].user, result)
+            raise serializers.ValidationError({'caption': {'code': 'caption_blocked', 'message': 'This caption contains content that cannot be published.', 'reasons': result.reasons}})
+        return result
 

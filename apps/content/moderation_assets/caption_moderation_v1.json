@@ -1,0 +1,110 @@
+{
+  "model_version": "caption-moderation-server-1.0.0",
+  "labels": [
+    "sexual_explicit",
+    "profanity_obscene",
+    "harassment_insult",
+    "threat_violence",
+    "hate_identity_attack"
+  ],
+  "thresholds": {
+    "sexual_explicit": {
+      "review": 0.356926,
+      "block": 0.759376
+    },
+    "profanity_obscene": {
+      "review": 0.364683,
+      "block": 0.760928
+    },
+    "harassment_insult": {
+      "review": 0.308898,
+      "block": 0.743784
+    },
+    "threat_violence": {
+      "review": 0.368791,
+      "block": 0.811116
+    },
+    "hate_identity_attack": {
+      "review": 0.323836,
+      "block": 0.863922
+    }
+  },
+  "actions": [
+    "allow",
+    "warn",
+    "review",
+    "block"
+  ],
+  "training_examples": 17446,
+  "validation_examples": 3777,
+  "test_examples": 3646,
+  "per_label": {
+    "sexual_explicit": {
+      "review": {
+        "precision": 0.7191316146540027,
+        "recall": 0.9363957597173145,
+        "f1": 0.8135072908672295
+      },
+      "block": {
+        "precision": 0.9242819843342036,
+        "recall": 0.6254416961130742,
+        "f1": 0.7460484720758693
+      },
+      "pr_auc": 0.9037097338601262
+    },
+    "profanity_obscene": {
+      "review": {
+        "precision": 0.7065462753950339,
+        "recall": 0.9165446559297218,
+        "f1": 0.7979604843849586
+      },
+      "block": {
+        "precision": 0.9205955334987593,
+        "recall": 0.5431918008784773,
+        "f1": 0.6832412523020258
+      },
+      "pr_auc": 0.8871348495422547
+    },
+    "harassment_insult": {
+      "review": {
+        "precision": 0.5374358974358975,
+        "recall": 0.9176882661996497,
+        "f1": 0.6778783958602846
+      },
+      "block": {
+        "precision": 0.9171483622350675,
+        "recall": 0.4168126094570928,
+        "f1": 0.5731487055990367
+      },
+      "pr_auc": 0.8258569227032951
+    },
+    "threat_violence": {
+      "review": {
+        "precision": 0.6525096525096525,
+        "recall": 0.9102333931777379,
+        "f1": 0.760119940029985
+      },
+      "block": {
+        "precision": 0.9449035812672176,
+        "recall": 0.6157989228007181,
+        "f1": 0.7456521739130435
+      },
+      "pr_auc": 0.9023642972204768
+    },
+    "hate_identity_attack": {
+      "review": {
+        "precision": 0.7040690505548706,
+        "recall": 0.9469320066334992,
+        "f1": 0.8076379066478077
+      },
+      "block": {
+        "precision": 0.9155313351498637,
+        "recall": 0.5572139303482587,
+        "f1": 0.6927835051546392
+      },
+      "pr_auc": 0.8925914434282639
+    }
+  },
+  "artifact": "caption_moderation_v1.joblib",
+  "artifact_size_bytes": 5513617
+}

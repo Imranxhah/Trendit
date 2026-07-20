@@ -1,6 +1,6 @@
 from django.contrib import admin
 from unfold.admin import ModelAdmin
-from .models import Category, Post, SubPost
+from .models import CaptionModerationEvent, Category, Post, SubPost
 
 @admin.register(Category)
 class CategoryAdmin(ModelAdmin):
@@ -19,3 +19,20 @@ class PostAdmin(ModelAdmin):
 class SubPostAdmin(ModelAdmin):
     list_display = ('author', 'parent_post', 'created_at')
     search_fields = ('author__username', 'caption')
+
+
+@admin.register(CaptionModerationEvent)
+class CaptionModerationEventAdmin(ModelAdmin):
+    list_display = ('user', 'decision', 'model_version', 'created_at')
+    list_filter = ('decision', 'model_version', 'created_at')
+    search_fields = ('user__username', 'caption_fingerprint')
+    readonly_fields = (
+        'user', 'post', 'caption_fingerprint', 'model_version',
+        'decision', 'scores', 'reasons', 'created_at',
+    )
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
