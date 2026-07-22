@@ -441,7 +441,6 @@ class SendChatNotificationView(APIView):
 
     def post(self, request):
         from apps.core.fcm_utils import send_push_notification
-        from apps.content.moderation import ModerationUnavailable, analyze_caption
         
         receiver_id = request.data.get('receiver_id')
         message_text = request.data.get('message_text')
@@ -473,22 +472,8 @@ class SendChatNotificationView(APIView):
             return Response({'error': 'Messaging is unavailable for this conversation.'}, status=status.HTTP_403_FORBIDDEN)
 
         text = str(message_text or '').strip()
-        if message_type == 'text':
-            if not text:
-                return Response({'error': 'Message text is required.'}, status=status.HTTP_400_BAD_REQUEST)
-            try:
-                moderation = analyze_caption(text)
-            except ModerationUnavailable:
-                return Response(
-                    {'error': 'Message safety checks are temporarily unavailable.'},
-                    status=status.HTTP_503_SERVICE_UNAVAILABLE,
-                )
-            if moderation.decision != 'allow':
-                return Response({
-                    'error': 'This message violates the community safety rules.',
-                    'decision': moderation.decision,
-                    'reasons': moderation.reasons,
-                }, status=status.HTTP_400_BAD_REQUEST)
+        if message_type == 'text' and not text:
+            return Response({'error': 'Message text is required.'}, status=status.HTTP_400_BAD_REQUEST)
 
         preview_by_type = {
             'image': 'Sent a photo',

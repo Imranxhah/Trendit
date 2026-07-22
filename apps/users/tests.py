@@ -6,6 +6,7 @@ from .models import ChatReport, OTPVerification, UserViolation
 
 from django.utils import timezone
 from datetime import timedelta
+from unittest.mock import patch
 
 User = get_user_model()
 
@@ -58,6 +59,25 @@ class ChatSafetyTests(APITestCase):
             'reason': 'spam',
         }, format='json')
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    @patch('apps.core.fcm_utils.send_push_notification')
+    @patch('apps.content.moderation.analyze_caption')
+    @patch('firebase_admin.firestore.client')
+    def test_chat_notification_does_not_run_caption_models(
+        self, firestore_client, analyze, send_push
+    ):
+        firestore_client.return_value.collection.return_value.document.return_value.get.return_value.exists = False
+        room_id = '_'.join(sorted([str(self.user.pk), str(self.other.pk)]))
+        response = self.client.post(reverse('notify-chat'), {
+            'receiver_id': self.other.pk,
+            'room_id': room_id,
+            'message_type': 'text',
+            'message_text': 'Send this directly.',
+        }, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        analyze.assert_not_called()
+        send_push.assert_called_once()
 
 class UserAuthTests(APITestCase):
     def setUp(self):
