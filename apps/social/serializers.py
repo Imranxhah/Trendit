@@ -3,6 +3,7 @@ from .models import (
     Follow, Buddy, CloseBuddy, CloseBuddyRequest, PostApproval, Vote, Favorite,
     SubPostVote, Community, CommunityMembership
 )
+from phonenumbers import parse as parse_phone_number, region_code_for_number
 from django.contrib.auth import get_user_model
 
 User = get_user_model()
@@ -20,13 +21,16 @@ class CommunitySerializer(serializers.ModelSerializer):
     followers_count = serializers.SerializerMethodField()
     is_member = serializers.SerializerMethodField()
     is_creator = serializers.SerializerMethodField()
+    distance_km = serializers.FloatField(read_only=True, allow_null=True)
+    country_code = serializers.CharField(write_only=True, required=False)
 
     class Meta:
         model = Community
         fields = [
             'id', 'name', 'profile_picture', 'creator', 'creator_details',
             'members_count', 'followers_count', 'is_member', 'is_creator',
-            'created_at'
+            'latitude', 'longitude', 'distance_km', 'is_private',
+            'country_code', 'created_at'
         ]
         read_only_fields = ['creator', 'created_at']
 
@@ -36,7 +40,58 @@ class CommunitySerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Community name is required.")
         return name
 
+    def validate(self, attrs):
+        latitude = attrs.get('latitude', getattr(self.instance, 'latitude', None))
+        longitude = attrs.get('longitude', getattr(self.instance, 'longitude', None))
+        if (latitude is None) != (longitude is None):
+            raise serializers.ValidationError(
+                "Latitude and longitude must be provided together."
+            )
+
+        if latitude is not None and not -90 <= float(latitude) <= 90:
+            raise serializers.ValidationError("Latitude is outside the valid range.")
+        if longitude is not None and not -180 <= float(longitude) <= 180:
+            raise serializers.ValidationError("Longitude is outside the valid range.")
+
+        location_is_changing = (
+            self.instance is None
+            or 'latitude' in attrs
+            or 'longitude' in attrs
+        )
+        if location_is_changing:
+            if latitude is None:
+                raise serializers.ValidationError(
+                    "Select the city this community represents."
+                )
+            supplied_country = attrs.pop('country_code', '').upper()
+            expected_country = self._request_country_code()
+            if not expected_country:
+                raise serializers.ValidationError(
+                    "Add a valid international phone number before creating a community."
+                )
+            if supplied_country != expected_country:
+                raise serializers.ValidationError(
+                    "The selected country must match your verified phone number."
+                )
+        else:
+            attrs.pop('country_code', None)
+
+        return attrs
+
+    def _request_country_code(self):
+        request = self.context.get('request')
+        phone = getattr(getattr(request, 'user', None), 'phone_number', None)
+        if not phone:
+            return None
+        try:
+            return region_code_for_number(parse_phone_number(str(phone))) or None
+        except Exception:
+            return None
+
     def get_is_member(self, obj):
+        annotated = getattr(obj, 'user_is_member', None)
+        if annotated is not None:
+            return annotated
         request = self.context.get('request')
         if request and request.user.is_authenticated:
             return CommunityMembership.objects.filter(

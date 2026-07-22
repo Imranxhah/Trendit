@@ -225,6 +225,15 @@ CORS_ALLOW_ALL_ORIGINS = config('CORS_ALLOW_ALL_ORIGINS', default=False, cast=bo
 # ─── Default primary key field type ─────────────────────────────────────────
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
+COMMUNITY_INVITE_TTL_HOURS = config(
+    'COMMUNITY_INVITE_TTL_HOURS', default=168, cast=int
+)
+ANDROID_APP_SHA256_CERT_FINGERPRINTS = config(
+    'ANDROID_APP_SHA256_CERT_FINGERPRINTS',
+    default='62:7A:01:E0:3B:A8:64:B8:D0:D1:2D:CE:60:98:6C:B0:EE:4D:E7:E5:30:8E:E0:CB:C0:BC:47:AD:C2:2C:40:D8',
+    cast=Csv(),
+)
+
 
 # ─── Phone number settings ───────────────────────────────────────────────────
 PHONENUMBER_DB_FORMAT = 'E164'

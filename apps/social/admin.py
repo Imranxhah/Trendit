@@ -2,7 +2,7 @@ from django.contrib import admin
 from unfold.admin import ModelAdmin
 from .models import (
     Follow, Buddy, CloseBuddy, CloseBuddyRequest, PostApproval, Vote,
-    Community, CommunityMembership
+    Community, CommunityMembership, CommunityInvite
 )
 
 @admin.register(Follow)
@@ -37,7 +37,10 @@ class VoteAdmin(ModelAdmin):
 
 @admin.register(Community)
 class CommunityAdmin(ModelAdmin):
-    list_display = ('name', 'creator', 'profile_picture', 'created_at')
+    list_display = (
+        'name', 'creator', 'is_private', 'latitude', 'longitude', 'created_at'
+    )
+    list_filter = ('is_private',)
     search_fields = ('name', 'creator__username')
 
 
@@ -45,3 +48,12 @@ class CommunityAdmin(ModelAdmin):
 class CommunityMembershipAdmin(ModelAdmin):
     list_display = ('community', 'user', 'joined_at')
     search_fields = ('community__name', 'user__username')
+
+
+@admin.register(CommunityInvite)
+class CommunityInviteAdmin(ModelAdmin):
+    list_display = (
+        'community', 'created_by', 'created_at', 'expires_at', 'consumed_at'
+    )
+    search_fields = ('community__name', 'created_by__username')
+    readonly_fields = ('token_hash', 'created_at', 'consumed_at', 'consumed_by')

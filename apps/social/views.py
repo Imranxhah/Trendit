@@ -1,12 +1,24 @@
+import hashlib
+import math
+import secrets
+from datetime import timedelta
+from html import escape
+from urllib.parse import quote
+
 from rest_framework import generics, permissions, status
+from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from django.shortcuts import get_object_or_404
-from django.db.models import Count, Q
+from django.conf import settings
+from django.db import transaction
+from django.db.models import Count, Exists, OuterRef, Q
+from django.http import HttpResponse, JsonResponse
+from django.utils import timezone
 from .models import (
     Follow, Buddy, CloseBuddy, CloseBuddyRequest, PostApproval, Vote, Favorite,
-    SubPostVote, Community, CommunityMembership
+    SubPostVote, Community, CommunityMembership, CommunityInvite
 )
 from .serializers import (
     FollowSerializer, BuddySerializer,
@@ -25,6 +37,87 @@ from apps.core.models import Notification
 from django.contrib.contenttypes.models import ContentType
 
 User = get_user_model()
+
+
+def _community_queryset_for(user):
+    membership = CommunityMembership.objects.filter(
+        community_id=OuterRef('pk'),
+        user=user,
+    )
+    return (
+        Community.objects.select_related('creator')
+        .annotate(
+            user_is_member=Exists(membership),
+            members_count=Count('memberships', distinct=True),
+        )
+        .filter(
+            Q(is_private=False) | Q(creator=user) | Q(user_is_member=True)
+        )
+    )
+
+
+def _request_coordinates(request):
+    raw_latitude = request.query_params.get('latitude')
+    raw_longitude = request.query_params.get('longitude')
+    if raw_latitude is None and raw_longitude is None:
+        return None
+    if raw_latitude is None or raw_longitude is None:
+        raise ValidationError("Latitude and longitude must be provided together.")
+    try:
+        latitude = float(raw_latitude)
+        longitude = float(raw_longitude)
+    except (TypeError, ValueError):
+        raise ValidationError("Latitude and longitude must be valid numbers.")
+    if not -90 <= latitude <= 90 or not -180 <= longitude <= 180:
+        raise ValidationError("Latitude or longitude is outside the valid range.")
+    return latitude, longitude
+
+
+def _distance_km(origin_latitude, origin_longitude, community):
+    if community.latitude is None or community.longitude is None:
+        return None
+    latitude = math.radians(float(community.latitude))
+    longitude = math.radians(float(community.longitude))
+    origin_latitude = math.radians(origin_latitude)
+    origin_longitude = math.radians(origin_longitude)
+    delta_latitude = latitude - origin_latitude
+    delta_longitude = longitude - origin_longitude
+    haversine = (
+        math.sin(delta_latitude / 2) ** 2
+        + math.cos(origin_latitude)
+        * math.cos(latitude)
+        * math.sin(delta_longitude / 2) ** 2
+    )
+    return round(6371.0088 * 2 * math.asin(math.sqrt(haversine)), 1)
+
+
+def _rank_communities(queryset, request):
+    communities = list(queryset)
+    coordinates = _request_coordinates(request)
+    if coordinates is None:
+        communities.sort(
+            key=lambda community: (
+                -community.members_count,
+                community.name.casefold(),
+            )
+        )
+        return communities
+
+    for community in communities:
+        community.distance_km = _distance_km(*coordinates, community)
+    communities.sort(
+        key=lambda community: (
+            community.distance_km is None,
+            community.distance_km if community.distance_km is not None else math.inf,
+            -community.members_count,
+            community.name.casefold(),
+        )
+    )
+    return communities
+
+
+def _invite_hash(token):
+    return hashlib.sha256(token.encode('utf-8')).hexdigest()
 
 
 class IsCommunityCreator(permissions.BasePermission):
@@ -589,9 +682,10 @@ class CommunityListCreateView(generics.ListCreateAPIView):
     parser_classes = [JSONParser, FormParser, MultiPartParser]
 
     def get_queryset(self):
-        return Community.objects.select_related('creator').annotate(
-            members_count=Count('memberships')
-        ).order_by('name')
+        return _rank_communities(
+            _community_queryset_for(self.request.user),
+            self.request,
+        )
 
     def perform_create(self, serializer):
         community = serializer.save(creator=self.request.user)
@@ -613,11 +707,12 @@ class CommunitySearchView(generics.ListAPIView):
         query = self.request.query_params.get('q', '').strip()
         if not query:
             return Community.objects.none()
-        return Community.objects.select_related('creator').filter(
-            name__icontains=query
-        ).annotate(
-            members_count=Count('memberships')
-        ).order_by('name')[:30]
+        return _rank_communities(
+            _community_queryset_for(self.request.user).filter(
+                name__icontains=query
+            ),
+            self.request,
+        )[:30]
 
 
 class CommunityDetailView(generics.RetrieveUpdateDestroyAPIView):
@@ -652,6 +747,13 @@ class CommunityJoinView(APIView):
 
     def post(self, request, community_id):
         community = get_object_or_404(Community, id=community_id)
+        if community.is_private and not CommunityMembership.objects.filter(
+            community=community,
+            user=request.user,
+        ).exists():
+            raise PermissionDenied(
+                "This community is private. Join it using a valid invite link."
+            )
         _, created = CommunityMembership.objects.get_or_create(
             community=community,
             user=request.user
@@ -687,6 +789,155 @@ class CommunityJoinView(APIView):
         data = serializer.data
         data['message'] = "Left community successfully."
         return Response(data, status=status.HTTP_200_OK)
+
+
+class CommunityLocationContextView(APIView):
+    permission_classes = [permissions.IsAuthenticated, IsProfileComplete]
+
+    def get(self, request):
+        phone = request.user.phone_number
+        country_code = None
+        if phone:
+            try:
+                from phonenumbers import parse as parse_phone_number
+                from phonenumbers import region_code_for_number
+
+                country_code = region_code_for_number(
+                    parse_phone_number(str(phone))
+                )
+            except Exception:
+                country_code = None
+        if not country_code:
+            raise ValidationError(
+                "A valid international phone number is required."
+            )
+        return Response({'country_code': country_code})
+
+
+class CommunityInviteCreateView(APIView):
+    permission_classes = [permissions.IsAuthenticated, IsProfileComplete]
+
+    def post(self, request, community_id):
+        community = get_object_or_404(Community, id=community_id)
+        if community.creator_id != request.user.id:
+            raise PermissionDenied(
+                "Only the community creator can create invite links."
+            )
+
+        token = secrets.token_urlsafe(32)
+        ttl_hours = getattr(settings, 'COMMUNITY_INVITE_TTL_HOURS', 168)
+        CommunityInvite.objects.create(
+            community=community,
+            token_hash=_invite_hash(token),
+            created_by=request.user,
+            expires_at=timezone.now() + timedelta(hours=ttl_hours),
+        )
+        invite_url = request.build_absolute_uri(
+            f'/community-invite/{token}'
+        )
+        return Response(
+            {
+                'invite_url': invite_url,
+                'expires_in_hours': ttl_hours,
+                'single_use': True,
+            },
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class CommunityInviteView(APIView):
+    permission_classes = [permissions.IsAuthenticated, IsProfileComplete]
+
+    def _get_valid_invite(self, token, for_update=False):
+        queryset = CommunityInvite.objects.select_related(
+            'community', 'community__creator'
+        )
+        if for_update:
+            queryset = queryset.select_for_update()
+        invite = get_object_or_404(queryset, token_hash=_invite_hash(token))
+        if invite.consumed_at is not None:
+            raise ValidationError("This invite link has already been used.")
+        if invite.expires_at <= timezone.now():
+            raise ValidationError("This invite link has expired.")
+        return invite
+
+    def get(self, request, token):
+        invite = self._get_valid_invite(token)
+        community = _community_queryset_for(request.user).filter(
+            id=invite.community_id
+        ).first()
+        if community is None:
+            community = (
+                Community.objects.select_related('creator')
+                .annotate(members_count=Count('memberships', distinct=True))
+                .get(id=invite.community_id)
+            )
+            community.user_is_member = False
+        serializer = CommunitySerializer(
+            community,
+            context={'request': request},
+        )
+        return Response(serializer.data)
+
+    @transaction.atomic
+    def post(self, request, token):
+        invite = self._get_valid_invite(token, for_update=True)
+        CommunityMembership.objects.get_or_create(
+            community=invite.community,
+            user=request.user,
+        )
+        invite.consumed_at = timezone.now()
+        invite.consumed_by = request.user
+        invite.save(update_fields=['consumed_at', 'consumed_by'])
+
+        community = _community_queryset_for(request.user).get(
+            id=invite.community_id
+        )
+        data = CommunitySerializer(
+            community,
+            context={'request': request},
+        ).data
+        data['message'] = f"Joined {community.name}."
+        return Response(data, status=status.HTTP_201_CREATED)
+
+
+def community_invite_landing(request, token):
+    safe_token = quote(token, safe='')
+    app_uri = escape(
+        f'trendit://skorpion.pythonanywhere.com/community-invite/{safe_token}',
+        quote=True,
+    )
+    return HttpResponse(
+        '<!doctype html><html><head>'
+        '<meta name="viewport" content="width=device-width,initial-scale=1">'
+        f'<meta http-equiv="refresh" content="0;url={app_uri}">'
+        '<title>Open Trendit</title></head>'
+        '<body style="font-family:sans-serif;text-align:center;padding:48px">'
+        '<h1>Open Trendit</h1><p>This invite opens in the Trendit app.</p>'
+        f'<p><a href="{app_uri}">Continue to Trendit</a></p>'
+        '</body></html>'
+    )
+
+
+def android_asset_links(request):
+    fingerprints = getattr(
+        settings,
+        'ANDROID_APP_SHA256_CERT_FINGERPRINTS',
+        [],
+    )
+    return JsonResponse(
+        [
+            {
+                'relation': ['delegate_permission/common.handle_all_urls'],
+                'target': {
+                    'namespace': 'android_app',
+                    'package_name': 'com.imranshah.trendit',
+                    'sha256_cert_fingerprints': fingerprints,
+                },
+            }
+        ],
+        safe=False,
+    )
 
 
 class RejectedCloseBuddyRequestsView(generics.ListAPIView):

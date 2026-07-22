@@ -149,6 +149,21 @@ class Community(models.Model):
         on_delete=models.CASCADE,
         related_name='created_communities'
     )
+    latitude = models.DecimalField(
+        max_digits=9,
+        decimal_places=6,
+        null=True,
+        blank=True,
+        db_index=True,
+    )
+    longitude = models.DecimalField(
+        max_digits=9,
+        decimal_places=6,
+        null=True,
+        blank=True,
+        db_index=True,
+    )
+    is_private = models.BooleanField(default=False, db_index=True)
     members = models.ManyToManyField(
         User,
         through='CommunityMembership',
@@ -183,3 +198,33 @@ class CommunityMembership(models.Model):
 
     def __str__(self):
         return f"{self.user} joined {self.community}"
+
+
+class CommunityInvite(models.Model):
+    community = models.ForeignKey(
+        Community,
+        on_delete=models.CASCADE,
+        related_name='invites',
+    )
+    token_hash = models.CharField(max_length=64, unique=True, db_index=True)
+    created_by = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='created_community_invites',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField(db_index=True)
+    consumed_at = models.DateTimeField(null=True, blank=True)
+    consumed_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='consumed_community_invites',
+    )
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"Invite for {self.community}"
