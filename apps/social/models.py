@@ -163,6 +163,7 @@ class Community(models.Model):
         blank=True,
         db_index=True,
     )
+    city_name = models.CharField(max_length=120, blank=True, default='')
     is_private = models.BooleanField(default=False, db_index=True)
     members = models.ManyToManyField(
         User,

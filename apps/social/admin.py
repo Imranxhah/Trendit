@@ -38,7 +38,8 @@ class VoteAdmin(ModelAdmin):
 @admin.register(Community)
 class CommunityAdmin(ModelAdmin):
     list_display = (
-        'name', 'creator', 'is_private', 'latitude', 'longitude', 'created_at'
+        'name', 'creator', 'city_name', 'is_private', 'latitude', 'longitude',
+        'created_at'
     )
     list_filter = ('is_private',)
     search_fields = ('name', 'creator__username')

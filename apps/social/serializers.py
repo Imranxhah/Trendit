@@ -29,7 +29,7 @@ class CommunitySerializer(serializers.ModelSerializer):
         fields = [
             'id', 'name', 'profile_picture', 'creator', 'creator_details',
             'members_count', 'followers_count', 'is_member', 'is_creator',
-            'latitude', 'longitude', 'distance_km', 'is_private',
+            'latitude', 'longitude', 'city_name', 'distance_km', 'is_private',
             'country_code', 'created_at'
         ]
         read_only_fields = ['creator', 'created_at']
@@ -43,6 +43,9 @@ class CommunitySerializer(serializers.ModelSerializer):
     def validate(self, attrs):
         latitude = attrs.get('latitude', getattr(self.instance, 'latitude', None))
         longitude = attrs.get('longitude', getattr(self.instance, 'longitude', None))
+        city_name = attrs.get(
+            'city_name', getattr(self.instance, 'city_name', '')
+        ).strip()
         if (latitude is None) != (longitude is None):
             raise serializers.ValidationError(
                 "Latitude and longitude must be provided together."
@@ -57,12 +60,14 @@ class CommunitySerializer(serializers.ModelSerializer):
             self.instance is None
             or 'latitude' in attrs
             or 'longitude' in attrs
+            or 'city_name' in attrs
         )
         if location_is_changing:
-            if latitude is None:
+            if latitude is None or not city_name:
                 raise serializers.ValidationError(
                     "Select the city this community represents."
                 )
+            attrs['city_name'] = city_name
             supplied_country = attrs.pop('country_code', '').upper()
             expected_country = self._request_country_code()
             if not expected_country:

@@ -37,13 +37,16 @@ class CommunityDiscoveryTests(APITestCase):
         )
         self.client.force_authenticate(self.creator)
 
-    def create_community(self, name, latitude, longitude, is_private=False):
+    def create_community(
+        self, name, latitude, longitude, is_private=False, city_name='New York'
+    ):
         response = self.client.post(
             reverse('community-list-create'),
             {
                 'name': name,
                 'latitude': latitude,
                 'longitude': longitude,
+                'city_name': city_name,
                 'country_code': 'US',
                 'is_private': is_private,
             },
@@ -65,6 +68,7 @@ class CommunityDiscoveryTests(APITestCase):
                 'name': 'New York Creators',
                 'latitude': 40.7128,
                 'longitude': -74.0060,
+                'city_name': 'New York',
                 'country_code': 'GB',
             },
             format='json',
@@ -72,6 +76,18 @@ class CommunityDiscoveryTests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn('verified phone number', str(response.data).lower())
+
+    def test_selected_city_name_is_returned_by_list_and_detail(self):
+        community = self.create_community(
+            'Brooklyn Creators', 40.6782, -73.9442, city_name='Brooklyn'
+        )
+
+        listing = self.client.get(reverse('community-list-create'))
+        listed = next(item for item in listing.data if item['id'] == community.id)
+        detail = self.client.get(reverse('community-detail', args=[community.id]))
+
+        self.assertEqual(listed['city_name'], 'Brooklyn')
+        self.assertEqual(detail.data['city_name'], 'Brooklyn')
 
     def test_location_ranking_and_member_count_fallback(self):
         nearby = self.create_community(
