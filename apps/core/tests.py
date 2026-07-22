@@ -2,6 +2,7 @@ from django.test import TestCase
 from .models import AppSettings, Notification, Report
 from django.contrib.auth import get_user_model
 from apps.content.models import Post, Category
+from .serializers import NotificationSerializer
 
 User = get_user_model()
 
@@ -25,6 +26,20 @@ class CoreModelTests(TestCase):
             target=self.post
         )
         self.assertEqual(notif.target, self.post)
+
+    def test_notification_includes_actor_profile_picture(self):
+        self.user.profile_picture = 'profile_pics/avatar.jpg'
+        self.user.save(update_fields=['profile_picture'])
+        notif = Notification.objects.create(
+            recipient=self.user,
+            actor=self.user,
+            verb='followed you',
+            target=self.post,
+        )
+
+        data = NotificationSerializer(notif).data
+
+        self.assertIn('profile_pics/avatar.jpg', data['actor_profile_picture'])
 
     def test_report_creation(self):
         report = Report.objects.create(
