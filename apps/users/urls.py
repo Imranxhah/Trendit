@@ -4,7 +4,8 @@ from .views import (
     RegisterView, VerifyOTPView, UserProfileView, UserProfileDetailView,
     BanUserView, UnbanUserView, ForgotPasswordRequestView, ForgotPasswordResetView,
     RecordViolationView, GoogleLoginView, SyncContactsView, UpdateDeviceTokenView,
-    TestNotificationView, FirebaseCustomTokenView, SendChatNotificationView
+    TestNotificationView, FirebaseCustomTokenView, SendChatNotificationView,
+    ChatRelationshipView, ChatReportView
 )
 from .serializers import CustomTokenObtainPairSerializer
 from rest_framework_simplejwt.views import TokenObtainPairView
@@ -48,4 +49,6 @@ urlpatterns = [
     
     # Notify Chat
     path('notify-chat/', SendChatNotificationView.as_view(), name='notify-chat'),
+    path('chat/relationship/<int:user_id>/', ChatRelationshipView.as_view(), name='chat-relationship'),
+    path('chat/reports/', ChatReportView.as_view(), name='chat-report'),
 ]

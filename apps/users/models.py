@@ -75,3 +75,40 @@ class UserViolation(models.Model):
     def __str__(self):
         return f"{self.user.username} - {self.rule_broken or 'Violation'} - {self.created_at}"
 
+
+class ChatReport(models.Model):
+    REASON_CHOICES = (
+        ('spam', 'Spam'),
+        ('harassment', 'Harassment or bullying'),
+        ('hate', 'Hate or identity attack'),
+        ('threat', 'Threat or violence'),
+        ('sexual', 'Sexual content'),
+        ('other', 'Other'),
+    )
+
+    reporter = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='chat_reports_made',
+    )
+    reported_user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='chat_reports_received',
+    )
+    room_id = models.CharField(max_length=320)
+    message_id = models.CharField(max_length=160, blank=True)
+    reason = models.CharField(max_length=20, choices=REASON_CHOICES)
+    details = models.TextField(blank=True, max_length=1000)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['reported_user', '-created_at']),
+            models.Index(fields=['room_id', '-created_at']),
+        ]
+
+    def __str__(self):
+        return f"{self.reporter} reported {self.reported_user}: {self.reason}"
+

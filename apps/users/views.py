@@ -5,7 +5,7 @@ from django.utils import timezone
 from datetime import timedelta
 from django.shortcuts import get_object_or_404
 import random
-from .models import User, OTPVerification, UserViolation
+from .models import ChatReport, Profile, User, OTPVerification, UserViolation
 
 from .serializers import (
     UserRegistrationSerializer, 
@@ -441,12 +441,15 @@ class SendChatNotificationView(APIView):
 
     def post(self, request):
         from apps.core.fcm_utils import send_push_notification
+        from apps.content.moderation import ModerationUnavailable, analyze_caption
         
         receiver_id = request.data.get('receiver_id')
         message_text = request.data.get('message_text')
         room_id = request.data.get('room_id')
 
-        if not receiver_id or not message_text or not room_id:
+        message_type = str(request.data.get('message_type', 'text')).lower()
+
+        if not receiver_id or not room_id:
             return Response({'error': 'Missing parameters'}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
@@ -454,18 +457,140 @@ class SendChatNotificationView(APIView):
         except User.DoesNotExist:
             return Response({'error': 'Receiver not found'}, status=status.HTTP_404_NOT_FOUND)
 
+        if receiver == request.user:
+            return Response({'error': 'You cannot message yourself.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        expected_room_id = '_'.join(sorted([str(request.user.id), str(receiver.id)]))
+        if str(room_id) != expected_room_id:
+            return Response({'error': 'Invalid chat room.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        sender_profile, _ = Profile.objects.get_or_create(user=request.user)
+        receiver_profile, _ = Profile.objects.get_or_create(user=receiver)
+        if (
+            sender_profile.blocked_users.filter(pk=receiver_profile.pk).exists()
+            or receiver_profile.blocked_users.filter(pk=sender_profile.pk).exists()
+        ):
+            return Response({'error': 'Messaging is unavailable for this conversation.'}, status=status.HTTP_403_FORBIDDEN)
+
+        text = str(message_text or '').strip()
+        if message_type == 'text':
+            if not text:
+                return Response({'error': 'Message text is required.'}, status=status.HTTP_400_BAD_REQUEST)
+            try:
+                moderation = analyze_caption(text)
+            except ModerationUnavailable:
+                return Response(
+                    {'error': 'Message safety checks are temporarily unavailable.'},
+                    status=status.HTTP_503_SERVICE_UNAVAILABLE,
+                )
+            if moderation.decision != 'allow':
+                return Response({
+                    'error': 'This message violates the community safety rules.',
+                    'decision': moderation.decision,
+                    'reasons': moderation.reasons,
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+        preview_by_type = {
+            'image': 'Sent a photo',
+            'video': 'Sent a video',
+            'audio': 'Sent a voice message',
+        }
+        notification_body = text if message_type == 'text' else preview_by_type.get(message_type, 'Sent a message')
+
+        try:
+            from firebase_admin import firestore
+            room_snapshot = firestore.client().collection('chats').document(str(room_id)).get()
+            if room_snapshot.exists:
+                room_data = room_snapshot.to_dict() or {}
+                if str(receiver.id) in room_data.get('mutedBy', []):
+                    return Response({'status': 'success', 'message': 'Conversation is muted.'})
+        except Exception as error:
+            # Notification delivery should remain available if Firestore has a temporary issue.
+            print(f'Could not check chat mute state for {room_id}: {error}')
+
         title = f"New message from {request.user.get_full_name() or request.user.username}"
         
         send_push_notification(
             user=receiver,
             title=title,
-            body=message_text,
+            body=notification_body[:240],
             data={
                 "type": "chat_message",
                 "room_id": str(room_id),
-                "sender_id": str(request.user.id)
+                "sender_id": str(request.user.id),
+                "message_type": message_type,
             },
             trigger_user=request.user
         )
 
         return Response({'status': 'success', 'message': 'Notification sent'}, status=status.HTTP_200_OK)
+
+
+class ChatRelationshipView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def _profiles(self, request, user_id):
+        other_user = get_object_or_404(User.objects.filter(is_active=True), pk=user_id)
+        if other_user == request.user:
+            return None, None, Response(
+                {'error': 'This action is not available for your own account.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        current_profile, _ = Profile.objects.get_or_create(user=request.user)
+        other_profile, _ = Profile.objects.get_or_create(user=other_user)
+        return current_profile, other_profile, None
+
+    def get(self, request, user_id):
+        current_profile, other_profile, error = self._profiles(request, user_id)
+        if error:
+            return error
+        return Response({
+            'blocked_by_me': current_profile.blocked_users.filter(pk=other_profile.pk).exists(),
+            'blocked_me': other_profile.blocked_users.filter(pk=current_profile.pk).exists(),
+        })
+
+    def post(self, request, user_id):
+        current_profile, other_profile, error = self._profiles(request, user_id)
+        if error:
+            return error
+        current_profile.blocked_users.add(other_profile)
+        return Response({'blocked_by_me': True, 'blocked_me': False})
+
+    def delete(self, request, user_id):
+        current_profile, other_profile, error = self._profiles(request, user_id)
+        if error:
+            return error
+        current_profile.blocked_users.remove(other_profile)
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class ChatReportView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        reported_user = get_object_or_404(
+            User.objects.filter(is_active=True),
+            pk=request.data.get('reported_user_id'),
+        )
+        if reported_user == request.user:
+            return Response({'error': 'You cannot report your own account.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        room_id = str(request.data.get('room_id', '')).strip()
+        expected_room_id = '_'.join(sorted([str(request.user.id), str(reported_user.id)]))
+        if room_id != expected_room_id:
+            return Response({'error': 'Invalid chat room.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        valid_reasons = {value for value, _ in ChatReport.REASON_CHOICES}
+        reason = str(request.data.get('reason', '')).strip()
+        if reason not in valid_reasons:
+            return Response({'reason': ['Select a valid report reason.']}, status=status.HTTP_400_BAD_REQUEST)
+
+        report = ChatReport.objects.create(
+            reporter=request.user,
+            reported_user=reported_user,
+            room_id=room_id,
+            message_id=str(request.data.get('message_id', '')).strip()[:160],
+            reason=reason,
+            details=str(request.data.get('details', '')).strip()[:1000],
+        )
+        return Response({'id': report.id, 'status': 'received'}, status=status.HTTP_201_CREATED)

@@ -261,10 +261,12 @@ class CloudinarySignatureView(APIView):
 
     def post(self, request, *args, **kwargs):
         timestamp = int(time.time())
+        requested_folder = str(request.data.get('folder', 'posts')).strip()
+        folder = requested_folder if requested_folder in {'posts', 'chat_media'} else 'posts'
         # Parameters to include in the signature
         params = {
             'timestamp': timestamp,
-            'folder': 'posts', # You can adjust this based on request data if needed
+            'folder': folder,
             'eager': 'sp_auto',
             'eager_async': True,
         }

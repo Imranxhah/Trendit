@@ -2,12 +2,62 @@ from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
 from django.contrib.auth import get_user_model
-from .models import OTPVerification, UserViolation
+from .models import ChatReport, OTPVerification, UserViolation
 
 from django.utils import timezone
 from datetime import timedelta
 
 User = get_user_model()
+
+
+class ChatSafetyTests(APITestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(
+            username='chat-user', email='chat-user@example.com', password='password', is_verified=True
+        )
+        self.other = User.objects.create_user(
+            username='chat-other', email='chat-other@example.com', password='password', is_verified=True
+        )
+        self.relationship_url = reverse('chat-relationship', args=[self.other.pk])
+        self.report_url = reverse('chat-report')
+        self.client.force_authenticate(user=self.user)
+
+    def test_user_can_block_and_unblock_chat_participant(self):
+        response = self.client.post(self.relationship_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(self.user.profile.blocked_users.filter(pk=self.other.profile.pk).exists())
+
+        status_response = self.client.get(self.relationship_url)
+        self.assertTrue(status_response.data['blocked_by_me'])
+
+        response = self.client.delete(self.relationship_url)
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertFalse(self.user.profile.blocked_users.filter(pk=self.other.profile.pk).exists())
+
+    def test_user_can_report_a_valid_conversation(self):
+        room_id = '_'.join(sorted([str(self.user.pk), str(self.other.pk)]))
+        response = self.client.post(self.report_url, {
+            'reported_user_id': self.other.pk,
+            'room_id': room_id,
+            'message_id': 'message-1',
+            'reason': 'harassment',
+            'details': 'Repeated abusive messages.',
+        }, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertTrue(ChatReport.objects.filter(
+            reporter=self.user,
+            reported_user=self.other,
+            room_id=room_id,
+        ).exists())
+
+    def test_report_rejects_forged_room_id(self):
+        response = self.client.post(self.report_url, {
+            'reported_user_id': self.other.pk,
+            'room_id': 'forged-room',
+            'reason': 'spam',
+        }, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
 class UserAuthTests(APITestCase):
     def setUp(self):

@@ -2,7 +2,7 @@ from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.contrib import messages
 from unfold.admin import ModelAdmin
-from .models import User, Profile, UserDevice, OTPVerification, UserViolation
+from .models import ChatReport, User, Profile, UserDevice, OTPVerification, UserViolation
 
 
 # --- Custom Admin Actions ---
@@ -59,4 +59,17 @@ class UserViolationAdmin(ModelAdmin):
     list_display = ('user', 'rule_broken', 'created_at')
     list_filter = ('rule_broken', 'created_at')
     search_fields = ('user__username', 'user__email', 'rule_broken', 'description')
+
+
+@admin.register(ChatReport)
+class ChatReportAdmin(ModelAdmin):
+    list_display = ('reporter', 'reported_user', 'reason', 'room_id', 'created_at')
+    list_filter = ('reason', 'created_at')
+    search_fields = (
+        'reporter__username',
+        'reported_user__username',
+        'room_id',
+        'message_id',
+        'details',
+    )
 
