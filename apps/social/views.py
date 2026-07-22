@@ -720,22 +720,21 @@ class CommunityDetailView(generics.RetrieveUpdateDestroyAPIView):
     GET    /api/social/communities/<community_id>/
     PATCH  /api/social/communities/<community_id>/  Body: name/profile_picture
     DELETE /api/social/communities/<community_id>/
-    Only the community creator can manage the community.
+    Any visible community can be read. Only the creator can edit or delete it.
     """
     serializer_class = CommunitySerializer
-    permission_classes = [
-        permissions.IsAuthenticated,
-        IsProfileComplete,
-        IsCommunityCreator,
-    ]
     parser_classes = [JSONParser, FormParser, MultiPartParser]
     lookup_field = 'id'
     lookup_url_kwarg = 'community_id'
 
+    def get_permissions(self):
+        permission_classes = [permissions.IsAuthenticated, IsProfileComplete]
+        if self.request.method not in permissions.SAFE_METHODS:
+            permission_classes.append(IsCommunityCreator)
+        return [permission() for permission in permission_classes]
+
     def get_queryset(self):
-        return Community.objects.select_related('creator').annotate(
-            members_count=Count('memberships')
-        )
+        return _community_queryset_for(self.request.user)
 
 
 class CommunityJoinView(APIView):

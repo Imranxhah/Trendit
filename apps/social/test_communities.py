@@ -107,6 +107,38 @@ class CommunityDiscoveryTests(APITestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
+    def test_detail_is_readable_but_management_is_creator_only(self):
+        public = self.create_community(
+            'Public Detail', 40.7128, -74.0060
+        )
+        private = self.create_community(
+            'Hidden Detail', 40.7128, -74.0060, is_private=True
+        )
+        self.client.force_authenticate(self.visitor)
+
+        detail = self.client.get(reverse('community-detail', args=[public.id]))
+        self.assertEqual(detail.status_code, status.HTTP_200_OK)
+        self.assertEqual(detail.data['id'], public.id)
+
+        hidden = self.client.get(reverse('community-detail', args=[private.id]))
+        self.assertEqual(hidden.status_code, status.HTTP_404_NOT_FOUND)
+
+        blocked_patch = self.client.patch(
+            reverse('community-detail', args=[public.id]),
+            {'name': 'Visitor Rename'},
+            format='json',
+        )
+        self.assertEqual(blocked_patch.status_code, status.HTTP_403_FORBIDDEN)
+
+        self.client.force_authenticate(self.creator)
+        patched = self.client.patch(
+            reverse('community-detail', args=[public.id]),
+            {'name': 'Creator Rename'},
+            format='json',
+        )
+        self.assertEqual(patched.status_code, status.HTTP_200_OK)
+        self.assertEqual(patched.data['name'], 'Creator Rename')
+
     def test_private_invite_is_single_use(self):
         private = self.create_community(
             'Invite Only', 40.7128, -74.0060, is_private=True
