@@ -2,12 +2,20 @@ from rest_framework import generics, permissions, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from django.conf import settings
+from django.shortcuts import render
 from django.utils import timezone
 from datetime import timedelta
 from .models import Notification, Report
 from .serializers import NotificationSerializer, ReportSerializer
 import cloudinary
 import cloudinary.uploader
+
+
+def landing_page(request):
+    return render(request, 'core/landing_page.html', {
+        'apk_download_url': settings.TRENDIT_APK_DOWNLOAD_URL,
+        'app_version': settings.TRENDIT_APP_VERSION,
+    })
 
 class NotificationListView(generics.ListAPIView):
     serializer_class = NotificationSerializer

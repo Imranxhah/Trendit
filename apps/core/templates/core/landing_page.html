@@ -1,0 +1,223 @@
+{% load static %}
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0a0a0a">
+  <meta name="description" content="Trendit is a community-powered Android app for discovering, rating and shaping what trends next.">
+  <meta property="og:title" content="Trendit - Shape what trends next">
+  <meta property="og:description" content="Discover rising posts, join local communities and share with the people who matter.">
+  <meta property="og:image" content="{{ request.scheme }}://{{ request.get_host }}{% static 'core/images/screen-trending.jpg' %}">
+  <title>Trendit - Shape what trends next</title>
+  <link rel="icon" type="image/png" href="{% static 'core/images/trendit-app.png' %}">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&amp;family=Space+Grotesk:wght@500;600;700&amp;display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{% static 'core/css/landing.css' %}">
+  <script defer src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.min.js"></script>
+  <script defer src="{% static 'core/js/landing.js' %}"></script>
+</head>
+<body>
+  <div class="scroll-progress" aria-hidden="true"><span></span></div>
+
+  <header class="site-header" data-header>
+    <a class="brand" href="#top" aria-label="Trendit home">
+      <img src="{% static 'core/images/trendit-app.png' %}" alt="" width="38" height="38">
+      <span>Trendit</span>
+    </a>
+    <nav class="desktop-nav" aria-label="Primary navigation">
+      <a href="#experience">Experience</a>
+      <a href="#features">Features</a>
+      <a href="#download">Download</a>
+    </nav>
+    <a class="nav-download" href="{{ apk_download_url }}" data-download-link>
+      <i data-lucide="download" aria-hidden="true"></i>
+      <span>Get the APK</span>
+    </a>
+  </header>
+
+  <main id="top">
+    <section class="hero" style="--hero-image: url('{% static 'core/images/screen-trending.jpg' %}')">
+      <div class="hero-backdrop" aria-hidden="true"></div>
+      <div class="hero-grid" aria-hidden="true"></div>
+      <div class="hero-content reveal is-visible">
+        <p class="eyebrow"><span></span> Community-powered discovery</p>
+        <h1>Trendit</h1>
+        <p class="hero-lead">See what's rising.<br>Shape what trends next.</p>
+        <p class="hero-copy">Discover posts through real community ratings, find people around shared interests, and publish with intelligent tools that keep the experience moving.</p>
+        <div class="hero-actions">
+          <a class="button button-primary" href="{{ apk_download_url }}" data-download-link>
+            <i data-lucide="download" aria-hidden="true"></i>
+            <span>Download for Android</span>
+          </a>
+          <a class="button button-ghost" href="#experience">
+            <i data-lucide="play" aria-hidden="true"></i>
+            <span>Explore the app</span>
+          </a>
+        </div>
+        <div class="hero-meta" aria-label="App information">
+          <span><i data-lucide="smartphone" aria-hidden="true"></i> Android APK</span>
+          <span><i data-lucide="sparkles" aria-hidden="true"></i> Version {{ app_version }}</span>
+          <span><i data-lucide="moon-star" aria-hidden="true"></i> Light + dark</span>
+        </div>
+      </div>
+      <a class="scroll-cue" href="#experience" aria-label="Scroll to app experience">
+        <span>Inside Trendit</span>
+        <i data-lucide="arrow-down" aria-hidden="true"></i>
+      </a>
+    </section>
+
+    <section class="signal-strip" aria-label="Trendit capabilities">
+      <div class="signal-track">
+        <span>Discover</span><b>Rated by people</b><span>Connect</span><b>Local communities</b><span>Create</span><b>Smart publishing</b><span>Replay</span><b>Seven-day trends</b>
+        <span>Discover</span><b>Rated by people</b><span>Connect</span><b>Local communities</b><span>Create</span><b>Smart publishing</b><span>Replay</span><b>Seven-day trends</b>
+      </div>
+    </section>
+
+    <section class="experience section-light" id="experience">
+      <div class="section-intro reveal">
+        <p class="section-kicker">One app. Many signals.</p>
+        <h2>Everything happening now,<br>in one living feed.</h2>
+        <p>Move from discovery to creation without breaking your flow. Every surface is designed for quick decisions, clear context and genuine participation.</p>
+      </div>
+
+      <div class="screen-switcher reveal" data-screen-switcher>
+        <div class="screen-tabs" role="tablist" aria-label="App screen preview">
+          <button class="screen-tab is-active" type="button" role="tab" aria-selected="true" data-screen="{% static 'core/images/screen-trending.jpg' %}" data-alt="Trendit trending feed in light and dark mode">
+            <i data-lucide="flame" aria-hidden="true"></i> Trending
+          </button>
+          <button class="screen-tab" type="button" role="tab" aria-selected="false" data-screen="{% static 'core/images/screen-editor.jpg' %}" data-alt="Trendit media filter editor">
+            <i data-lucide="wand-sparkles" aria-hidden="true"></i> Create
+          </button>
+          <button class="screen-tab" type="button" role="tab" aria-selected="false" data-screen="{% static 'core/images/screen-communities.jpg' %}" data-alt="Nearby communities in Trendit">
+            <i data-lucide="users" aria-hidden="true"></i> Communities
+          </button>
+          <button class="screen-tab" type="button" role="tab" aria-selected="false" data-screen="{% static 'core/images/screen-profile.jpg' %}" data-alt="Trendit profile in light and dark mode">
+            <i data-lucide="circle-user-round" aria-hidden="true"></i> Profile
+          </button>
+        </div>
+        <div class="screen-stage">
+          <div class="stage-number" aria-hidden="true">01</div>
+          <img src="{% static 'core/images/screen-trending.jpg' %}" alt="Trendit trending feed in light and dark mode" data-screen-image>
+          <div class="stage-caption">
+            <span data-screen-label>Trending</span>
+            <p>Real screens. Real product.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="feature-band band-dark" id="features">
+      <div class="feature-copy reveal">
+        <p class="section-kicker">Find your people</p>
+        <h2>Communities that start nearby.</h2>
+        <p>Discover public communities by location, create a city-based space, or keep it private with a one-time invitation link.</p>
+        <ul class="feature-points">
+          <li><i data-lucide="map-pin" aria-hidden="true"></i> Nearby-first discovery</li>
+          <li><i data-lucide="link-2" aria-hidden="true"></i> Private invite links</li>
+          <li><i data-lucide="shield-check" aria-hidden="true"></i> Owner controls</li>
+        </ul>
+      </div>
+      <figure class="feature-visual reveal">
+        <img src="{% static 'core/images/screen-create-community.jpg' %}" alt="Creating public and private communities in Trendit" loading="lazy">
+        <figcaption>Public when you want reach. Private when you want focus.</figcaption>
+      </figure>
+    </section>
+
+    <section class="feature-band band-white">
+      <figure class="feature-visual reveal">
+        <img src="{% static 'core/images/screen-close-buddies.jpg' %}" alt="Close Buddies controls in Trendit" loading="lazy">
+        <figcaption>Your inner circle stays easy to understand and manage.</figcaption>
+      </figure>
+      <div class="feature-copy reveal">
+        <p class="section-kicker">Share with intention</p>
+        <h2>A smaller circle for closer moments.</h2>
+        <p>Close Buddies gives private posts a clear audience. Approvals, requests and conversations stay connected to the people they involve.</p>
+        <ul class="feature-points">
+          <li><i data-lucide="star" aria-hidden="true"></i> Dedicated close-buddy posts</li>
+          <li><i data-lucide="message-circle" aria-hidden="true"></i> Rich private messaging</li>
+          <li><i data-lucide="bell-ring" aria-hidden="true"></i> Actionable notifications</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="feature-band band-ink">
+      <div class="feature-copy reveal">
+        <p class="section-kicker">Create without friction</p>
+        <h2>Make the post feel right before it goes live.</h2>
+        <p>Edit photos and videos, preview category predictions from the caption, and move through safety checks before sharing.</p>
+        <ul class="feature-points">
+          <li><i data-lucide="sliders-horizontal" aria-hidden="true"></i> Media filters and intensity</li>
+          <li><i data-lucide="tags" aria-hidden="true"></i> Image + text categorization</li>
+          <li><i data-lucide="scan-eye" aria-hidden="true"></i> Multi-layer moderation</li>
+        </ul>
+      </div>
+      <figure class="feature-visual reveal">
+        <img src="{% static 'core/images/screen-editor.jpg' %}" alt="Photo filter editor in Trendit" loading="lazy">
+        <figcaption>Fast controls, live feedback and a clear way forward.</figcaption>
+      </figure>
+    </section>
+
+    <section class="feature-index section-light">
+      <div class="section-intro compact reveal">
+        <p class="section-kicker">The complete loop</p>
+        <h2>More than a feed.</h2>
+      </div>
+      <div class="feature-list">
+        <article class="feature-row reveal">
+          <span class="feature-number">01</span>
+          <div><h3>Rate what resonates</h3><p>Fire ratings turn participation into the ranking signal behind Trending.</p></div>
+          <i data-lucide="flame" aria-hidden="true"></i>
+        </article>
+        <article class="feature-row reveal">
+          <span class="feature-number">02</span>
+          <div><h3>Look back at the week</h3><p>Previous Trends preserves each day's top posts across a rolling seven-day view.</p></div>
+          <i data-lucide="history" aria-hidden="true"></i>
+        </article>
+        <article class="feature-row reveal">
+          <span class="feature-number">03</span>
+          <div><h3>Keep every action connected</h3><p>Notifications open the profile, post, approval or conversation that needs attention.</p></div>
+          <i data-lucide="route" aria-hidden="true"></i>
+        </article>
+        <article class="feature-row reveal">
+          <span class="feature-number">04</span>
+          <div><h3>Choose your side</h3><p>A full light and dark experience that follows how you use your phone.</p></div>
+          <i data-lucide="sun-moon" aria-hidden="true"></i>
+        </article>
+      </div>
+    </section>
+
+    <section class="download-section" id="download">
+      <div class="download-noise" aria-hidden="true"></div>
+      <div class="download-inner reveal">
+        <img class="download-logo" src="{% static 'core/images/trendit-app.png' %}" alt="Trendit app icon" width="104" height="104">
+        <p class="section-kicker">Ready when you are</p>
+        <h2>Put the next trend<br>in your pocket.</h2>
+        <p class="download-copy">Download the Android APK directly from the latest verified GitHub Release.</p>
+        <a class="button button-download" href="{{ apk_download_url }}" data-download-link>
+          <i data-lucide="download" aria-hidden="true"></i>
+          <span><small>Latest Android release</small>Download Trendit APK</span>
+        </a>
+        <div class="download-meta">
+          <span>Version {{ app_version }}</span>
+          <span>Android</span>
+          <span>GitHub Release</span>
+        </div>
+      </div>
+      <div class="download-preview reveal" aria-hidden="true">
+        <img src="{% static 'core/images/screen-notifications.jpg' %}" alt="" loading="lazy">
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <a class="brand" href="#top">
+      <img src="{% static 'core/images/trendit-app.png' %}" alt="" width="34" height="34">
+      <span>Trendit</span>
+    </a>
+    <p>Discover. Rate. Connect.</p>
+    <a href="{{ apk_download_url }}" data-download-link>Download Android APK <i data-lucide="arrow-up-right" aria-hidden="true"></i></a>
+  </footer>
+</body>
+</html>
