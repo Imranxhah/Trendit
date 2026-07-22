@@ -6,9 +6,18 @@ from django.conf import settings
 
 logger = logging.getLogger(__name__)
 
-def send_push_notification(user, title, body, data=None, trigger_user=None):
+def send_push_notification(
+    user,
+    title,
+    body,
+    data=None,
+    trigger_user=None,
+    display_notification=False,
+):
     """
-    Sends a silent data-only push notification to all active devices of a given user.
+    Sends a push notification to all active devices of a given user.
+    Chat messages use an OS-visible notification payload for reliable background delivery;
+    other notification types can keep using the app-rendered data-only flow.
     `data` is a dictionary of custom key-value pairs (e.g., {"type": "follow", "target_id": "123"}).
     """
     # Guard: check if Firebase Admin SDK was initialized
@@ -48,10 +57,13 @@ def send_push_notification(user, title, body, data=None, trigger_user=None):
         priority='high',
     )
     
-    # We can use messaging.MulticastMessage to send to multiple tokens at once
-    # Omit the `notification` argument entirely for a silent data payload.
+    notification = None
+    if display_notification:
+        notification = messaging.Notification(title=title, body=body)
+
     message = messaging.MulticastMessage(
         data=stringified_data,
+        notification=notification,
         android=android_config,
         tokens=tokens,
     )

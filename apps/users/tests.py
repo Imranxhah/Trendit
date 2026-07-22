@@ -3,6 +3,7 @@ from rest_framework import status
 from rest_framework.test import APITestCase
 from django.contrib.auth import get_user_model
 from .models import ChatReport, OTPVerification, UserViolation
+from apps.social.models import Buddy
 
 from django.utils import timezone
 from datetime import timedelta
@@ -19,6 +20,7 @@ class ChatSafetyTests(APITestCase):
         self.other = User.objects.create_user(
             username='chat-other', email='chat-other@example.com', password='password', is_verified=True
         )
+        Buddy.objects.create(user1=self.user, user2=self.other)
         self.relationship_url = reverse('chat-relationship', args=[self.other.pk])
         self.report_url = reverse('chat-report')
         self.client.force_authenticate(user=self.user)
@@ -78,6 +80,21 @@ class ChatSafetyTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         analyze.assert_not_called()
         send_push.assert_called_once()
+        self.assertTrue(send_push.call_args.kwargs['display_notification'])
+
+    @patch('apps.core.fcm_utils.send_push_notification')
+    def test_chat_notification_requires_buddies(self, send_push):
+        Buddy.objects.all().delete()
+        room_id = '_'.join(sorted([str(self.user.pk), str(self.other.pk)]))
+        response = self.client.post(reverse('notify-chat'), {
+            'receiver_id': self.other.pk,
+            'room_id': room_id,
+            'message_type': 'text',
+            'message_text': 'This should not be delivered.',
+        }, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        send_push.assert_not_called()
 
 class UserAuthTests(APITestCase):
     def setUp(self):

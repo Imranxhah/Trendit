@@ -6,6 +6,7 @@ from datetime import timedelta
 from django.shortcuts import get_object_or_404
 import random
 from .models import ChatReport, Profile, User, OTPVerification, UserViolation
+from apps.social.models import Buddy
 
 from .serializers import (
     UserRegistrationSerializer, 
@@ -463,6 +464,16 @@ class SendChatNotificationView(APIView):
         if str(room_id) != expected_room_id:
             return Response({'error': 'Invalid chat room.'}, status=status.HTTP_400_BAD_REQUEST)
 
+        are_buddies = Buddy.objects.filter(
+            Q(user1=request.user, user2=receiver)
+            | Q(user1=receiver, user2=request.user)
+        ).exists()
+        if not are_buddies:
+            return Response(
+                {'error': 'Only buddies can message each other.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
         sender_profile, _ = Profile.objects.get_or_create(user=request.user)
         receiver_profile, _ = Profile.objects.get_or_create(user=receiver)
         if (
@@ -505,7 +516,8 @@ class SendChatNotificationView(APIView):
                 "sender_id": str(request.user.id),
                 "message_type": message_type,
             },
-            trigger_user=request.user
+            trigger_user=request.user,
+            display_notification=True,
         )
 
         return Response({'status': 'success', 'message': 'Notification sent'}, status=status.HTTP_200_OK)
@@ -529,9 +541,14 @@ class ChatRelationshipView(APIView):
         current_profile, other_profile, error = self._profiles(request, user_id)
         if error:
             return error
+        are_buddies = Buddy.objects.filter(
+            Q(user1=request.user, user2_id=user_id)
+            | Q(user1_id=user_id, user2=request.user)
+        ).exists()
         return Response({
             'blocked_by_me': current_profile.blocked_users.filter(pk=other_profile.pk).exists(),
             'blocked_me': other_profile.blocked_users.filter(pk=current_profile.pk).exists(),
+            'is_buddy': are_buddies,
         })
 
     def post(self, request, user_id):
