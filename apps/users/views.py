@@ -6,7 +6,7 @@ from datetime import timedelta
 from django.shortcuts import get_object_or_404
 import random
 from .models import ChatReport, Profile, User, OTPVerification, UserViolation
-from apps.social.models import Buddy
+from apps.social.models import Buddy, CloseBuddy
 
 from .serializers import (
     UserRegistrationSerializer, 
@@ -433,6 +433,18 @@ class FirebaseCustomTokenView(APIView):
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+
+def _users_can_message(user, other_user):
+    are_buddies = Buddy.objects.filter(
+        Q(user1=user, user2=other_user) | Q(user1=other_user, user2=user)
+    ).exists()
+    if are_buddies:
+        return True
+    return CloseBuddy.objects.filter(
+        Q(user=user, buddy=other_user) | Q(user=other_user, buddy=user)
+    ).exists()
+
+
 class SendChatNotificationView(APIView):
     """
     POST /users/notify-chat/
@@ -464,13 +476,10 @@ class SendChatNotificationView(APIView):
         if str(room_id) != expected_room_id:
             return Response({'error': 'Invalid chat room.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        are_buddies = Buddy.objects.filter(
-            Q(user1=request.user, user2=receiver)
-            | Q(user1=receiver, user2=request.user)
-        ).exists()
-        if not are_buddies:
+        can_message = _users_can_message(request.user, receiver)
+        if not can_message:
             return Response(
-                {'error': 'Only buddies can message each other.'},
+                {'error': 'Only buddies or close buddies can message each other.'},
                 status=status.HTTP_403_FORBIDDEN,
             )
 
@@ -545,10 +554,16 @@ class ChatRelationshipView(APIView):
             Q(user1=request.user, user2_id=user_id)
             | Q(user1_id=user_id, user2=request.user)
         ).exists()
+        are_close_buddies = CloseBuddy.objects.filter(
+            Q(user=request.user, buddy_id=user_id)
+            | Q(user_id=user_id, buddy=request.user)
+        ).exists()
         return Response({
             'blocked_by_me': current_profile.blocked_users.filter(pk=other_profile.pk).exists(),
             'blocked_me': other_profile.blocked_users.filter(pk=current_profile.pk).exists(),
             'is_buddy': are_buddies,
+            'is_close_buddy': are_close_buddies,
+            'can_message': are_buddies or are_close_buddies,
         })
 
     def post(self, request, user_id):

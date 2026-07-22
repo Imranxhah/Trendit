@@ -3,7 +3,7 @@ from rest_framework import status
 from rest_framework.test import APITestCase
 from django.contrib.auth import get_user_model
 from .models import ChatReport, OTPVerification, UserViolation
-from apps.social.models import Buddy
+from apps.social.models import Buddy, CloseBuddy
 
 from django.utils import timezone
 from datetime import timedelta
@@ -95,6 +95,38 @@ class ChatSafetyTests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         send_push.assert_not_called()
+
+    @patch('apps.core.fcm_utils.send_push_notification')
+    @patch('firebase_admin.firestore.client')
+    def test_close_buddy_can_receive_chat_notification(
+        self, firestore_client, send_push
+    ):
+        Buddy.objects.all().delete()
+        CloseBuddy.objects.create(user=self.user, buddy=self.other)
+        firestore_client.return_value.collection.return_value.document.return_value.get.return_value.exists = False
+        room_id = '_'.join(sorted([str(self.user.pk), str(self.other.pk)]))
+
+        response = self.client.post(reverse('notify-chat'), {
+            'receiver_id': self.other.pk,
+            'room_id': room_id,
+            'message_type': 'text',
+            'message_text': 'Close buddy message.',
+        }, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        send_push.assert_called_once()
+
+    def test_chat_relationship_allows_close_buddy_without_buddy(self):
+        Buddy.objects.all().delete()
+        CloseBuddy.objects.create(user=self.user, buddy=self.other)
+
+        response = self.client.get(self.relationship_url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertFalse(response.data['is_buddy'])
+        self.assertTrue(response.data['is_close_buddy'])
+        self.assertTrue(response.data['can_message'])
+
 
 class UserAuthTests(APITestCase):
     def setUp(self):
