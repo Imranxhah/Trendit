@@ -4,11 +4,12 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#0a0a0a">
-  <meta name="description" content="Trendit is a community-powered Android app for discovering, rating and shaping what trends next.">
+  <meta name="theme-color" content="#09090a">
+  <meta name="description" content="Trendit is the Android social app where people discover rising posts, rate what matters, join local communities and share with close buddies.">
   <meta property="og:title" content="Trendit - Shape what trends next">
-  <meta property="og:description" content="Discover rising posts, join local communities and share with the people who matter.">
-  <meta property="og:image" content="{{ request.scheme }}://{{ request.get_host }}{% static 'core/images/screen-trending.jpg' %}">
+  <meta property="og:description" content="Discover what is rising, rate what matters and find your people.">
+  <meta property="og:type" content="website">
+  <meta property="og:image" content="{{ request.scheme }}://{{ request.get_host }}{% static 'core/images/landing/trending.webp' %}">
   <title>Trendit - Shape what trends next</title>
   <link rel="icon" type="image/png" href="{% static 'core/images/trendit-app.png' %}">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -26,198 +27,430 @@
       <img src="{% static 'core/images/trendit-app.png' %}" alt="" width="38" height="38">
       <span>Trendit</span>
     </a>
+
     <nav class="desktop-nav" aria-label="Primary navigation">
+      <a href="#explore">Explore</a>
       <a href="#experience">Experience</a>
-      <a href="#features">Features</a>
       <a href="#download">Download</a>
     </nav>
-    <a class="nav-download" href="{{ apk_download_url }}" data-download-link>
+
+    <a class="header-download" href="{{ apk_download_url }}" data-download-link>
       <i data-lucide="download" aria-hidden="true"></i>
       <span>Get the APK</span>
     </a>
   </header>
 
   <main id="top">
-    <section class="hero" style="--hero-image: url('{% static 'core/images/screen-trending.jpg' %}')">
-      <div class="hero-backdrop" aria-hidden="true"></div>
-      <div class="hero-grid" aria-hidden="true"></div>
-      <div class="hero-content reveal is-visible">
-        <p class="eyebrow"><span></span> Community-powered discovery</p>
-        <h1>Trendit</h1>
-        <p class="hero-lead">See what's rising.<br>Shape what trends next.</p>
-        <p class="hero-copy">Discover posts through real community ratings, find people around shared interests, and publish with intelligent tools that keep the experience moving.</p>
+    <section class="hero" aria-labelledby="hero-title">
+      <canvas class="hero-canvas" data-trend-field aria-hidden="true"></canvas>
+
+      <div class="hero-signal-key" aria-hidden="true">
+        <div class="hero-signal-heading">
+          <span>Live trend signal</span>
+          <i></i>
+        </div>
+        <div class="hero-signal-row">
+          <span>01</span>
+          <strong>Discover</strong>
+          <em>Community-ranked posts</em>
+        </div>
+        <div class="hero-signal-row">
+          <span>02</span>
+          <strong>Rate</strong>
+          <em>People shape the ranking</em>
+        </div>
+        <div class="hero-signal-row">
+          <span>03</span>
+          <strong>Connect</strong>
+          <em>Communities and buddies</em>
+        </div>
+      </div>
+
+      <div class="hero-copy reveal is-visible">
+        <p class="hero-kicker"><span></span> Community-powered discovery</p>
+        <h1 id="hero-title">Trendit<span>.</span></h1>
+        <div class="hero-message">
+          <p class="hero-lead">See what is rising.<br>Shape what trends next.</p>
+          <p class="hero-detail">Discover real posts, rate what matters, create with smart tools and find communities built around people and place.</p>
+        </div>
         <div class="hero-actions">
           <a class="button button-primary" href="{{ apk_download_url }}" data-download-link>
             <i data-lucide="download" aria-hidden="true"></i>
             <span>Download for Android</span>
           </a>
-          <a class="button button-ghost" href="#experience">
-            <i data-lucide="play" aria-hidden="true"></i>
-            <span>Explore the app</span>
+          <a class="button button-secondary" href="#explore">
+            <i data-lucide="arrow-down" aria-hidden="true"></i>
+            <span>Explore Trendit</span>
           </a>
         </div>
         <div class="hero-meta" aria-label="App information">
-          <span><i data-lucide="smartphone" aria-hidden="true"></i> Android APK</span>
-          <span><i data-lucide="sparkles" aria-hidden="true"></i> Version {{ app_version }}</span>
-          <span><i data-lucide="moon-star" aria-hidden="true"></i> Light + dark</span>
+          <span>Android APK</span>
+          <span>Version {{ app_version }}</span>
+          <span>Light + dark mode</span>
         </div>
       </div>
-      <a class="scroll-cue" href="#experience" aria-label="Scroll to app experience">
-        <span>Inside Trendit</span>
+
+      <a class="hero-scroll" href="#explore" aria-label="Scroll to explore the app">
+        <span>Inside the app</span>
         <i data-lucide="arrow-down" aria-hidden="true"></i>
       </a>
     </section>
 
-    <section class="signal-strip" aria-label="Trendit capabilities">
-      <div class="signal-track">
-        <span>Discover</span><b>Rated by people</b><span>Connect</span><b>Local communities</b><span>Create</span><b>Smart publishing</b><span>Replay</span><b>Seven-day trends</b>
-        <span>Discover</span><b>Rated by people</b><span>Connect</span><b>Local communities</b><span>Create</span><b>Smart publishing</b><span>Replay</span><b>Seven-day trends</b>
+    <section class="signal-band" aria-label="Core Trendit experiences">
+      <div>
+        <span class="signal-number">01</span>
+        <strong>Discover</strong>
+        <p>Community-ranked posts</p>
+      </div>
+      <div>
+        <span class="signal-number">02</span>
+        <strong>Create</strong>
+        <p>Photo and video tools</p>
+      </div>
+      <div>
+        <span class="signal-number">03</span>
+        <strong>Connect</strong>
+        <p>Communities and buddies</p>
+      </div>
+      <div>
+        <span class="signal-number">04</span>
+        <strong>Return</strong>
+        <p>Seven days of top trends</p>
       </div>
     </section>
 
-    <section class="experience section-light" id="experience">
-      <div class="section-intro reveal">
-        <p class="section-kicker">One app. Many signals.</p>
-        <h2>Everything happening now,<br>in one living feed.</h2>
-        <p>Move from discovery to creation without breaking your flow. Every surface is designed for quick decisions, clear context and genuine participation.</p>
-      </div>
-
-      <div class="screen-switcher reveal" data-screen-switcher>
-        <div class="screen-tabs" role="tablist" aria-label="App screen preview">
-          <button class="screen-tab is-active" type="button" role="tab" aria-selected="true" data-screen="{% static 'core/images/screen-trending.jpg' %}" data-alt="Trendit trending feed in light and dark mode">
-            <i data-lucide="flame" aria-hidden="true"></i> Trending
-          </button>
-          <button class="screen-tab" type="button" role="tab" aria-selected="false" data-screen="{% static 'core/images/screen-editor.jpg' %}" data-alt="Trendit media filter editor">
-            <i data-lucide="wand-sparkles" aria-hidden="true"></i> Create
-          </button>
-          <button class="screen-tab" type="button" role="tab" aria-selected="false" data-screen="{% static 'core/images/screen-communities.jpg' %}" data-alt="Nearby communities in Trendit">
-            <i data-lucide="users" aria-hidden="true"></i> Communities
-          </button>
-          <button class="screen-tab" type="button" role="tab" aria-selected="false" data-screen="{% static 'core/images/screen-profile.jpg' %}" data-alt="Trendit profile in light and dark mode">
-            <i data-lucide="circle-user-round" aria-hidden="true"></i> Profile
-          </button>
+    <section class="screen-explorer" id="explore" data-screen-explorer>
+      <div class="section-heading reveal">
+        <div>
+          <p class="section-kicker">The real product</p>
+          <h2>Take a look inside.</h2>
         </div>
-        <div class="screen-stage">
-          <div class="stage-number" aria-hidden="true">01</div>
-          <img src="{% static 'core/images/screen-trending.jpg' %}" alt="Trendit trending feed in light and dark mode" data-screen-image>
-          <div class="stage-caption">
-            <span data-screen-label>Trending</span>
-            <p>Real screens. Real product.</p>
-          </div>
-        </div>
+        <p>Seven core experiences, shown exactly where they belong: on the phone. Choose a screen to explore the app before you download it.</p>
       </div>
-    </section>
 
-    <section class="feature-band band-dark" id="features">
-      <div class="feature-copy reveal">
-        <p class="section-kicker">Find your people</p>
-        <h2>Communities that start nearby.</h2>
-        <p>Discover public communities by location, create a city-based space, or keep it private with a one-time invitation link.</p>
-        <ul class="feature-points">
-          <li><i data-lucide="map-pin" aria-hidden="true"></i> Nearby-first discovery</li>
-          <li><i data-lucide="link-2" aria-hidden="true"></i> Private invite links</li>
-          <li><i data-lucide="shield-check" aria-hidden="true"></i> Owner controls</li>
-        </ul>
-      </div>
-      <figure class="feature-visual reveal">
-        <img src="{% static 'core/images/screen-create-community.jpg' %}" alt="Creating public and private communities in Trendit" loading="lazy">
-        <figcaption>Public when you want reach. Private when you want focus.</figcaption>
-      </figure>
-    </section>
-
-    <section class="feature-band band-white">
-      <figure class="feature-visual reveal">
-        <img src="{% static 'core/images/screen-close-buddies.jpg' %}" alt="Close Buddies controls in Trendit" loading="lazy">
-        <figcaption>Your inner circle stays easy to understand and manage.</figcaption>
-      </figure>
-      <div class="feature-copy reveal">
-        <p class="section-kicker">Share with intention</p>
-        <h2>A smaller circle for closer moments.</h2>
-        <p>Close Buddies gives private posts a clear audience. Approvals, requests and conversations stay connected to the people they involve.</p>
-        <ul class="feature-points">
-          <li><i data-lucide="star" aria-hidden="true"></i> Dedicated close-buddy posts</li>
-          <li><i data-lucide="message-circle" aria-hidden="true"></i> Rich private messaging</li>
-          <li><i data-lucide="bell-ring" aria-hidden="true"></i> Actionable notifications</li>
-        </ul>
-      </div>
-    </section>
-
-    <section class="feature-band band-ink">
-      <div class="feature-copy reveal">
-        <p class="section-kicker">Create without friction</p>
-        <h2>Make the post feel right before it goes live.</h2>
-        <p>Edit photos and videos, preview category predictions from the caption, and move through safety checks before sharing.</p>
-        <ul class="feature-points">
-          <li><i data-lucide="sliders-horizontal" aria-hidden="true"></i> Media filters and intensity</li>
-          <li><i data-lucide="tags" aria-hidden="true"></i> Image + text categorization</li>
-          <li><i data-lucide="scan-eye" aria-hidden="true"></i> Multi-layer moderation</li>
-        </ul>
-      </div>
-      <figure class="feature-visual reveal">
-        <img src="{% static 'core/images/screen-editor.jpg' %}" alt="Photo filter editor in Trendit" loading="lazy">
-        <figcaption>Fast controls, live feedback and a clear way forward.</figcaption>
-      </figure>
-    </section>
-
-    <section class="feature-index section-light">
-      <div class="section-intro compact reveal">
-        <p class="section-kicker">The complete loop</p>
-        <h2>More than a feed.</h2>
-      </div>
-      <div class="feature-list">
-        <article class="feature-row reveal">
-          <span class="feature-number">01</span>
-          <div><h3>Rate what resonates</h3><p>Fire ratings turn participation into the ranking signal behind Trending.</p></div>
+      <div class="screen-tabs reveal" role="tablist" aria-label="Trendit app screens">
+        <button
+          class="screen-tab is-active"
+          type="button"
+          role="tab"
+          aria-selected="true"
+          data-index="0"
+          data-label="Trending"
+          data-copy="Live discovery shaped by community ratings."
+          data-screen="{% static 'core/images/landing/trending.webp' %}"
+          data-alt="Trendit trending feed with content filters and a rich media post">
           <i data-lucide="flame" aria-hidden="true"></i>
+          <span>Trending</span>
+        </button>
+        <button
+          class="screen-tab"
+          type="button"
+          role="tab"
+          aria-selected="false"
+          data-index="1"
+          data-label="Posts"
+          data-copy="Creator-first media with quick reactions and ratings."
+          data-screen="{% static 'core/images/landing/posts.webp' %}"
+          data-alt="Trendit post detail with rich media and community rating controls">
+          <i data-lucide="images" aria-hidden="true"></i>
+          <span>Posts</span>
+        </button>
+        <button
+          class="screen-tab"
+          type="button"
+          role="tab"
+          aria-selected="false"
+          data-index="2"
+          data-label="Create"
+          data-copy="Focused photo and video editing before you publish."
+          data-screen="{% static 'core/images/landing/editing.webp' %}"
+          data-alt="Trendit media editor with live preview, filters and intensity control">
+          <i data-lucide="wand-sparkles" aria-hidden="true"></i>
+          <span>Create</span>
+        </button>
+        <button
+          class="screen-tab"
+          type="button"
+          role="tab"
+          aria-selected="false"
+          data-index="3"
+          data-label="Communities"
+          data-copy="Search city-based spaces and discover nearby groups."
+          data-screen="{% static 'core/images/landing/communities.webp' %}"
+          data-alt="Trendit communities with search, location and member details">
+          <i data-lucide="users-round" aria-hidden="true"></i>
+          <span>Communities</span>
+        </button>
+        <button
+          class="screen-tab"
+          type="button"
+          role="tab"
+          aria-selected="false"
+          data-index="4"
+          data-label="Messages"
+          data-copy="Text, photos, video, voice and reactions in light or dark."
+          data-screen="{% static 'core/images/landing/messages.webp' %}"
+          data-alt="Trendit conversation in light and dark mode with media and voice messages">
+          <i data-lucide="message-circle-more" aria-hidden="true"></i>
+          <span>Messages</span>
+        </button>
+        <button
+          class="screen-tab"
+          type="button"
+          role="tab"
+          aria-selected="false"
+          data-index="5"
+          data-label="Notifications"
+          data-copy="Action-ready updates that take you where they matter."
+          data-screen="{% static 'core/images/landing/notifications.webp' %}"
+          data-alt="Trendit notifications grouped by time with user profile photos">
+          <i data-lucide="bell-ring" aria-hidden="true"></i>
+          <span>Notifications</span>
+        </button>
+        <button
+          class="screen-tab"
+          type="button"
+          role="tab"
+          aria-selected="false"
+          data-index="6"
+          data-label="Profile"
+          data-copy="A clean home for posts, followers, buddies and close buddies."
+          data-screen="{% static 'core/images/landing/profile.webp' %}"
+          data-alt="Trendit profile with social stats, buddy spaces and post grid">
+          <i data-lucide="circle-user-round" aria-hidden="true"></i>
+          <span>Profile</span>
+        </button>
+      </div>
+
+      <div class="screen-stage reveal">
+        <div class="screen-counter" aria-hidden="true">
+          <span data-current-screen>01</span>
+          <i></i>
+          <span>07</span>
+        </div>
+        <figure>
+          <img
+            src="{% static 'core/images/landing/trending.webp' %}"
+            alt="Trendit trending feed with content filters and a rich media post"
+            width="1448"
+            height="1086"
+            data-screen-image>
+          <figcaption aria-live="polite">
+            <strong data-screen-label>Trending</strong>
+            <span data-screen-copy>Live discovery shaped by community ratings.</span>
+          </figcaption>
+        </figure>
+        <div class="screen-controls" aria-label="Screen gallery controls">
+          <button type="button" data-screen-previous aria-label="Previous screen">
+            <i data-lucide="arrow-left" aria-hidden="true"></i>
+          </button>
+          <button type="button" data-screen-next aria-label="Next screen">
+            <i data-lucide="arrow-right" aria-hidden="true"></i>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <section class="experience" id="experience">
+      <article class="experience-row experience-dark">
+        <div class="experience-copy reveal">
+          <p class="section-kicker">Discovery with a signal</p>
+          <h2>Trend on what people actually rate.</h2>
+          <p>Trendit turns every rating into a useful ranking signal. Filter the feed, open the creator profile and move through rich image and video posts without losing context.</p>
+          <ul>
+            <li><i data-lucide="flame" aria-hidden="true"></i> Community-powered ratings</li>
+            <li><i data-lucide="sliders-horizontal" aria-hidden="true"></i> Category and community filters</li>
+            <li><i data-lucide="history" aria-hidden="true"></i> Daily top posts across seven days</li>
+          </ul>
+        </div>
+        <div class="experience-media reveal">
+          <img
+            src="{% static 'core/images/landing/posts.webp' %}"
+            alt="Trendit post detail experience"
+            loading="lazy"
+            width="1448"
+            height="1086">
+        </div>
+      </article>
+
+      <article class="experience-row experience-orange">
+        <div class="experience-media reveal">
+          <img
+            src="{% static 'core/images/landing/editing.webp' %}"
+            alt="Trendit media editing experience"
+            loading="lazy"
+            width="1448"
+            height="1086">
+        </div>
+        <div class="experience-copy reveal">
+          <p class="section-kicker">Create in one flow</p>
+          <h2>Make it feel right before it goes live.</h2>
+          <p>Preview media clearly, browse filters, tune their intensity and move into a caption flow that predicts categories as you type.</p>
+          <ul>
+            <li><i data-lucide="scan-eye" aria-hidden="true"></i> Live photo and video preview</li>
+            <li><i data-lucide="sliders-horizontal" aria-hidden="true"></i> Filter presets and precise intensity</li>
+            <li><i data-lucide="tags" aria-hidden="true"></i> Image, video and caption categorization</li>
+          </ul>
+        </div>
+      </article>
+
+      <article class="experience-row experience-paper">
+        <div class="experience-copy reveal">
+          <p class="section-kicker">Conversation, built in</p>
+          <h2>Stay close without leaving the moment.</h2>
+          <p>Talk with buddies through text, photos, videos and voice notes. Reactions, presence and light or dark modes keep every conversation easy to follow.</p>
+          <ul>
+            <li><i data-lucide="image" aria-hidden="true"></i> Rich photo and video sharing</li>
+            <li><i data-lucide="audio-lines" aria-hidden="true"></i> Voice notes with waveform playback</li>
+            <li><i data-lucide="reply" aria-hidden="true"></i> Replies, reactions and delivery states</li>
+          </ul>
+        </div>
+        <div class="experience-media reveal">
+          <img
+            src="{% static 'core/images/landing/messages.webp' %}"
+            alt="Trendit messaging experience in light and dark mode"
+            loading="lazy"
+            width="1448"
+            height="1086">
+        </div>
+      </article>
+    </section>
+
+    <section class="connected">
+      <div class="section-heading reveal">
+        <div>
+          <p class="section-kicker">Built around people</p>
+          <h2>Your place in the network.</h2>
+        </div>
+        <p>Find a local group, act on the update that matters, then return to a profile that keeps your social world understandable.</p>
+      </div>
+
+      <div class="connected-grid">
+        <article class="connected-item reveal">
+          <div class="connected-image">
+            <img
+              src="{% static 'core/images/landing/communities.webp' %}"
+              alt="Trendit community search and discovery"
+              loading="lazy"
+              width="1448"
+              height="1086">
+          </div>
+          <div class="connected-copy">
+            <span>01</span>
+            <h3>Find a community</h3>
+            <p>Search by name, discover nearby public groups or join a private space from an invitation.</p>
+          </div>
         </article>
-        <article class="feature-row reveal">
-          <span class="feature-number">02</span>
-          <div><h3>Look back at the week</h3><p>Previous Trends preserves each day's top posts across a rolling seven-day view.</p></div>
-          <i data-lucide="history" aria-hidden="true"></i>
+
+        <article class="connected-item reveal">
+          <div class="connected-image">
+            <img
+              src="{% static 'core/images/landing/notifications.webp' %}"
+              alt="Trendit notification center"
+              loading="lazy"
+              width="1448"
+              height="1086">
+          </div>
+          <div class="connected-copy">
+            <span>02</span>
+            <h3>Know what changed</h3>
+            <p>See ratings, approvals and buddy activity, then open the exact post or profile behind it.</p>
+          </div>
         </article>
-        <article class="feature-row reveal">
-          <span class="feature-number">03</span>
-          <div><h3>Keep every action connected</h3><p>Notifications open the profile, post, approval or conversation that needs attention.</p></div>
-          <i data-lucide="route" aria-hidden="true"></i>
+
+        <article class="connected-item reveal">
+          <div class="connected-image">
+            <img
+              src="{% static 'core/images/landing/profile.webp' %}"
+              alt="Trendit profile overview"
+              loading="lazy"
+              width="1448"
+              height="1086">
+          </div>
+          <div class="connected-copy">
+            <span>03</span>
+            <h3>Own your profile</h3>
+            <p>Keep posts, followers, buddies and close buddies in one clean, personal space.</p>
+          </div>
         </article>
-        <article class="feature-row reveal">
-          <span class="feature-number">04</span>
-          <div><h3>Choose your side</h3><p>A full light and dark experience that follows how you use your phone.</p></div>
+      </div>
+    </section>
+
+    <section class="feature-ledger" aria-label="More Trendit features">
+      <div class="ledger-title reveal">
+        <p class="section-kicker">The details matter</p>
+        <h2>More than<br>a feed.</h2>
+      </div>
+      <div class="ledger-list">
+        <article class="ledger-row reveal">
+          <span>01</span>
+          <div>
+            <h3>Close Buddies</h3>
+            <p>Choose a smaller audience for the posts and conversations that should stay close.</p>
+          </div>
+          <i data-lucide="shield-check" aria-hidden="true"></i>
+        </article>
+        <article class="ledger-row reveal">
+          <span>02</span>
+          <div>
+            <h3>Previous Trends</h3>
+            <p>Look back at each day's top three rated posts across a rolling seven-day view.</p>
+          </div>
+          <i data-lucide="calendar-range" aria-hidden="true"></i>
+        </article>
+        <article class="ledger-row reveal">
+          <span>03</span>
+          <div>
+            <h3>Smart Publishing</h3>
+            <p>Combine visual and caption predictions while safety checks happen before sharing.</p>
+          </div>
+          <i data-lucide="sparkles" aria-hidden="true"></i>
+        </article>
+        <article class="ledger-row reveal">
+          <span>04</span>
+          <div>
+            <h3>Light + Dark</h3>
+            <p>Use the complete Trendit experience in the mode that fits your phone and your moment.</p>
+          </div>
           <i data-lucide="sun-moon" aria-hidden="true"></i>
         </article>
       </div>
     </section>
 
     <section class="download-section" id="download">
-      <div class="download-noise" aria-hidden="true"></div>
-      <div class="download-inner reveal">
-        <img class="download-logo" src="{% static 'core/images/trendit-app.png' %}" alt="Trendit app icon" width="104" height="104">
-        <p class="section-kicker">Ready when you are</p>
+      <div class="download-mark" aria-hidden="true">T</div>
+      <div class="download-content reveal">
+        <img src="{% static 'core/images/trendit-app.png' %}" alt="Trendit app icon" width="88" height="88">
+        <p class="section-kicker">Available for Android</p>
         <h2>Put the next trend<br>in your pocket.</h2>
-        <p class="download-copy">Download the Android APK directly from the latest verified GitHub Release.</p>
-        <a class="button button-download" href="{{ apk_download_url }}" data-download-link>
+        <p>Download the latest Trendit APK directly from the GitHub release.</p>
+        <a class="download-button" href="{{ apk_download_url }}" data-download-link>
           <i data-lucide="download" aria-hidden="true"></i>
-          <span><small>Latest Android release</small>Download Trendit APK</span>
+          <span>
+            <small>Version {{ app_version }}</small>
+            Download Trendit APK
+          </span>
+          <i data-lucide="arrow-up-right" aria-hidden="true"></i>
         </a>
-        <div class="download-meta">
-          <span>Version {{ app_version }}</span>
-          <span>Android</span>
-          <span>GitHub Release</span>
-        </div>
       </div>
-      <div class="download-preview reveal" aria-hidden="true">
-        <img src="{% static 'core/images/screen-notifications.jpg' %}" alt="" loading="lazy">
+      <div class="download-facts reveal" aria-label="Download details">
+        <div><span>Platform</span><strong>Android</strong></div>
+        <div><span>Theme</span><strong>Light + dark</strong></div>
+        <div><span>Source</span><strong>GitHub Release</strong></div>
       </div>
     </section>
   </main>
 
   <footer class="site-footer">
-    <a class="brand" href="#top">
+    <a class="brand" href="#top" aria-label="Back to top">
       <img src="{% static 'core/images/trendit-app.png' %}" alt="" width="34" height="34">
       <span>Trendit</span>
     </a>
     <p>Discover. Rate. Connect.</p>
-    <a href="{{ apk_download_url }}" data-download-link>Download Android APK <i data-lucide="arrow-up-right" aria-hidden="true"></i></a>
+    <a href="{{ apk_download_url }}" data-download-link>
+      Download Android APK
+      <i data-lucide="arrow-up-right" aria-hidden="true"></i>
+    </a>
   </footer>
 </body>
 </html>
