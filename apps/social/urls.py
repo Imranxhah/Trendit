@@ -11,7 +11,7 @@ from .views import (
     IncomingCloseBuddyRequestsView, PendingSentCloseBuddyRequestsView,
     RejectedCloseBuddyRequestsView, IgnoredCloseBuddyRequestsView,
 
-    # Close Buddy (Inner Circle)
+    # Close Buddy
     CloseBuddyListView, ReverseCloseBuddyListView, CloseBuddySuggestionsView,
     RemoveCloseBuddyView,
 
@@ -44,7 +44,7 @@ urlpatterns = [
     path('close-buddies/requests/ignored/', IgnoredCloseBuddyRequestsView.as_view(), name='close-buddy-requests-ignored'),
     path('close-buddies/pending-sent/', PendingSentCloseBuddyRequestsView.as_view(), name='close-buddy-pending-sent'),
 
-    # ── Close Buddy (Inner Circle) ────────────────────────────────────────────
+    # ── Close Buddy ───────────────────────────────────────────────────────────
     path('close-buddies/', CloseBuddyListView.as_view(), name='close-buddy-list'),
     path('close-buddies/added-by/', ReverseCloseBuddyListView.as_view(), name='close-buddy-added-by'),
     path('close-buddies/suggestions/', CloseBuddySuggestionsView.as_view(), name='close-buddy-suggestions'),

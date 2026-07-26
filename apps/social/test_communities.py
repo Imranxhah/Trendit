@@ -188,3 +188,10 @@ class CommunityDiscoveryTests(APITestCase):
                 user=self.third,
             ).exists()
         )
+
+    def test_community_invite_browser_falls_back_to_landing_page(self):
+        response = self.client.get(
+            reverse('community-invite-landing', args=['invite-token'])
+        )
+
+        self.assertRedirects(response, reverse('landing-page'))

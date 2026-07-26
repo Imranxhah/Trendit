@@ -45,7 +45,7 @@ class Buddy(models.Model):
 
 class CloseBuddyRequest(models.Model):
     """
-    Permission-based request to add someone to your Inner Circle.
+    Permission-based request to add someone as a Close Buddy.
     Sender asks receiver to become their Close Buddy.
     Receiver must accept.
     """
@@ -74,7 +74,7 @@ class CloseBuddyRequest(models.Model):
 
 class CloseBuddy(models.Model):
     """
-    The 'Inner Circle' (Max 5).
+    A user's Close Buddies (maximum 5).
     Created when a CloseBuddyRequest is accepted.
     These users have the power to vote your posts into 'Trending'.
     """
@@ -95,7 +95,7 @@ class CloseBuddy(models.Model):
         super().save(*args, **kwargs)
 
     def __str__(self):
-        return f"{self.user}'s Inner Circle: {self.buddy}"
+        return f"{self.user}'s Close Buddy: {self.buddy}"
 
 
 class PostApproval(models.Model):

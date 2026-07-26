@@ -99,6 +99,51 @@ class SocialTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("You already have a pending request to this user.", str(response.data))
 
+    def test_sender_can_cancel_pending_close_buddy_request(self):
+        self.make_mutual_buddies(self.user, self.other_user)
+        request = CloseBuddyRequest.objects.create(
+            sender=self.user,
+            receiver=self.other_user,
+            status='pending',
+        )
+
+        response = self.client.delete(
+            reverse('close-buddy-request-send'),
+            {'receiver': self.other_user.id},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertFalse(
+            CloseBuddyRequest.objects.filter(id=request.id).exists()
+        )
+
+    def test_user_cannot_cancel_another_users_request(self):
+        third = User.objects.create_user(
+            username='third-canceller',
+            email='third-canceller@ex.com',
+            password='pass',
+            is_verified=True,
+            phone_number='+2348000000003',
+            has_completed_profile=True,
+        )
+        request = CloseBuddyRequest.objects.create(
+            sender=self.other_user,
+            receiver=third,
+            status='pending',
+        )
+
+        response = self.client.delete(
+            reverse('close-buddy-request-send'),
+            {'receiver': third.id},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertTrue(
+            CloseBuddyRequest.objects.filter(id=request.id).exists()
+        )
+
     def test_duplicate_close_buddy_request_accepted(self):
         self.make_mutual_buddies(self.user, self.other_user)
         # Create request and set accepted
@@ -108,7 +153,7 @@ class SocialTests(APITestCase):
         url = reverse('close-buddy-request-send')
         response = self.client.post(url, {"receiver": self.other_user.id})
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("This user is already in your inner circle.", str(response.data))
+        self.assertIn("This user is already a Close Buddy.", str(response.data))
 
     def test_duplicate_close_buddy_request_rejected(self):
         self.make_mutual_buddies(self.user, self.other_user)

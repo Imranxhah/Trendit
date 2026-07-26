@@ -65,3 +65,10 @@ class LandingPageTests(TestCase):
         self.assertContains(response, 'https://example.com/releases/trendit.apk')
         self.assertContains(response, 'Version 9.4.1')
         self.assertTemplateUsed(response, 'core/landing_page.html')
+
+    def test_post_share_browser_falls_back_to_landing_page(self):
+        response = self.client.get(
+            reverse('post-share-landing', args=[42])
+        )
+
+        self.assertRedirects(response, reverse('landing-page'))

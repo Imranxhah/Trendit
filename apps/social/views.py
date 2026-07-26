@@ -2,19 +2,17 @@ import hashlib
 import math
 import secrets
 from datetime import timedelta
-from html import escape
-from urllib.parse import quote
 
 from rest_framework import generics, permissions, status
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from django.shortcuts import get_object_or_404
+from django.shortcuts import get_object_or_404, redirect
 from django.conf import settings
 from django.db import transaction
 from django.db.models import Count, Exists, OuterRef, Q
-from django.http import HttpResponse, JsonResponse
+from django.http import JsonResponse
 from django.utils import timezone
 from .models import (
     Follow, Buddy, CloseBuddy, CloseBuddyRequest, PostApproval, Vote, Favorite,
@@ -238,7 +236,7 @@ class SendCloseBuddyRequestView(generics.CreateAPIView):
     """
     POST /api/social/close-buddies/request/
     Body: { "receiver": <user_id> }
-    Sends a request to add someone to your inner circle. They must accept.
+    Sends a request to make someone a Close Buddy. They must accept.
     Only mutual buddies can send requests.
     """
     serializer_class = CloseBuddyRequestSerializer
@@ -262,6 +260,26 @@ class SendCloseBuddyRequestView(generics.CreateAPIView):
             data={"type": "close_buddy_request", "target_id": str(self.request.user.id), "request_id": str(cbr.id)},
             trigger_user=self.request.user
         )
+
+    def delete(self, request, *args, **kwargs):
+        receiver_id = (
+            request.data.get('receiver')
+            or request.query_params.get('receiver')
+        )
+        if not receiver_id:
+            return Response(
+                {'error': 'Receiver is required.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        close_buddy_request = get_object_or_404(
+            CloseBuddyRequest,
+            sender=request.user,
+            receiver_id=receiver_id,
+            status='pending',
+        )
+        close_buddy_request.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 class RespondCloseBuddyRequestView(APIView):
     """
@@ -297,7 +315,7 @@ class RespondCloseBuddyRequestView(APIView):
                 cbr.status = 'rejected'
                 cbr.save()
                 return Response(
-                    {"error": "Sender's inner circle is already full (max 5)."},
+                    {"error": "Sender's Close Buddy list is full (max 5)."},
                     status=status.HTTP_400_BAD_REQUEST
                 )
             CloseBuddy.objects.get_or_create(user=cbr.sender, buddy=request.user)
@@ -349,12 +367,12 @@ class PendingSentCloseBuddyRequestsView(generics.ListAPIView):
         ).order_by('-created_at')
 
 
-# ─── Close Buddy (Inner Circle) ───────────────────────────────────────────────
+# ─── Close Buddy ──────────────────────────────────────────────────────────────
 
 class CloseBuddyListView(generics.ListAPIView):
     """
     GET /api/social/close-buddies/
-    Returns the current user's inner circle (up to 5 close buddies).
+    Returns the current user's Close Buddies (up to 5 users).
     """
     serializer_class = CloseBuddySerializer
     permission_classes = [permissions.IsAuthenticated]
@@ -366,7 +384,7 @@ class CloseBuddyListView(generics.ListAPIView):
 class ReverseCloseBuddyListView(generics.ListAPIView):
     """
     GET /api/social/close-buddies/added-by/
-    Returns users who have added the current user to their inner circle.
+    Returns users who have added the current user as a Close Buddy.
     """
     serializer_class = ReverseCloseBuddySerializer
     permission_classes = [permissions.IsAuthenticated]
@@ -413,7 +431,7 @@ class RemoveCloseBuddyView(APIView):
     """
     DELETE /api/social/close-buddies/remove/
     Body: { "user_id": <id> }
-    Removes a user from your inner circle.
+    Removes a Close Buddy.
     """
     permission_classes = [permissions.IsAuthenticated, IsProfileComplete]
 
@@ -424,8 +442,8 @@ class RemoveCloseBuddyView(APIView):
 
         deleted, _ = CloseBuddy.objects.filter(user=request.user, buddy_id=user_id).delete()
         if deleted:
-            return Response({"message": "User removed from your inner circle."}, status=status.HTTP_200_OK)
-        return Response({"error": "This user is not in your inner circle."}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"message": "Close Buddy removed."}, status=status.HTTP_200_OK)
+        return Response({"error": "This user is not a Close Buddy."}, status=status.HTTP_404_NOT_FOUND)
 
 
 # ─── Post Approval ────────────────────────────────────────────────────────────
@@ -634,7 +652,7 @@ class UnapprovedBuddyPostsView(generics.ListAPIView):
 
     def get_queryset(self):
         user = self.request.user
-        # Find users who have added ME to their inner circle
+        # Find users who have added me as a Close Buddy.
         authors_who_added_me = CloseBuddy.objects.filter(buddy=user).values_list('user_id', flat=True)
         already_approved_post_ids = PostApproval.objects.filter(buddy=user).values_list('post_id', flat=True)
 
@@ -901,21 +919,9 @@ class CommunityInviteView(APIView):
 
 
 def community_invite_landing(request, token):
-    safe_token = quote(token, safe='')
-    app_uri = escape(
-        f'trendit://skorpion.pythonanywhere.com/community-invite/{safe_token}',
-        quote=True,
-    )
-    return HttpResponse(
-        '<!doctype html><html><head>'
-        '<meta name="viewport" content="width=device-width,initial-scale=1">'
-        f'<meta http-equiv="refresh" content="0;url={app_uri}">'
-        '<title>Open Trendit</title></head>'
-        '<body style="font-family:sans-serif;text-align:center;padding:48px">'
-        '<h1>Open Trendit</h1><p>This invite opens in the Trendit app.</p>'
-        f'<p><a href="{app_uri}">Continue to Trendit</a></p>'
-        '</body></html>'
-    )
+    # Installed apps intercept this verified HTTPS link. Everyone else lands
+    # on the Trendit download page rather than an unsupported custom scheme.
+    return redirect('landing-page')
 
 
 def android_asset_links(request):

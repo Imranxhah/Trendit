@@ -2,8 +2,14 @@ from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
 from django.contrib.auth import get_user_model
-from .models import Category, Post, calculate_trending_score
-from apps.social.models import Community, CommunityMembership, Favorite, Vote
+from .models import Category, Post, SubPost, calculate_trending_score
+from apps.social.models import (
+    CloseBuddy,
+    Community,
+    CommunityMembership,
+    Favorite,
+    Vote,
+)
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.utils import timezone
 from datetime import datetime, time, timedelta
@@ -65,6 +71,71 @@ class ContentTests(APITestCase):
         body = response.data.get('data', response.data) if isinstance(response.data, dict) else response.data
         data_list = body.get('results', body) if isinstance(body, dict) else body
         self.assertEqual(len(data_list), 1)
+
+    def test_close_buddy_can_delete_authors_pending_post(self):
+        author = User.objects.create_user(
+            username='pendingauthor',
+            email='pendingauthor@ex.com',
+            password='pass',
+            is_verified=True,
+            phone_number='+2347000000100',
+            has_completed_profile=True,
+        )
+        CloseBuddy.objects.create(user=author, buddy=self.user)
+        pending_post = Post.objects.create(
+            author=author,
+            caption='Pending moderation',
+            status='pending',
+        )
+
+        response = self.client.delete(
+            reverse('post-detail', args=[pending_post.id])
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertFalse(Post.objects.filter(id=pending_post.id).exists())
+
+    def test_close_buddy_cannot_delete_authors_active_post(self):
+        author = User.objects.create_user(
+            username='activeauthor',
+            email='activeauthor@ex.com',
+            password='pass',
+            is_verified=True,
+            phone_number='+2347000000101',
+            has_completed_profile=True,
+        )
+        CloseBuddy.objects.create(user=author, buddy=self.user)
+        active_post = Post.objects.create(
+            author=author,
+            caption='Already published',
+            status='active',
+        )
+
+        response = self.client.delete(
+            reverse('post-detail', args=[active_post.id])
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertTrue(Post.objects.filter(id=active_post.id).exists())
+
+    def test_author_can_still_delete_subpost(self):
+        parent = Post.objects.create(
+            author=self.user,
+            caption='Parent post',
+            status='active',
+        )
+        subpost = SubPost.objects.create(
+            parent_post=parent,
+            author=self.user,
+            caption='Media reply',
+        )
+
+        response = self.client.delete(
+            reverse('subpost-detail', args=[subpost.id])
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertFalse(SubPost.objects.filter(id=subpost.id).exists())
 
     def test_trending_prefers_confident_rating_over_tiny_perfect_sample(self):
         high_confidence_post = Post.objects.create(

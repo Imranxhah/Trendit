@@ -41,7 +41,7 @@ def manage_buddy_on_unfollow(sender, instance, **kwargs):
 
 @receiver(post_delete, sender=CloseBuddy)
 def manage_close_buddy_request_on_remove(sender, instance, **kwargs):
-    # When a user is removed from the Inner Circle, delete the accepted request 
+    # When a Close Buddy is removed, delete the accepted request
     # so they can be invited again in the future if needed.
     CloseBuddyRequest.objects.filter(
         sender=instance.user,

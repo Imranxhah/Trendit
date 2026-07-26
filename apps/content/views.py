@@ -41,14 +41,29 @@ from django.db.models import Avg, Count, OuterRef, Subquery, Exists, Value
 from django.db.models.functions import Coalesce
 from .models import Post, Category, SubPost
 from .serializers import PostSerializer, CategorySerializer, SubPostSerializer
-from apps.social.models import Vote, Favorite, CommunityMembership
+from apps.social.models import (
+    CloseBuddy,
+    CommunityMembership,
+    Favorite,
+    Vote,
+)
 
 class IsAuthorOrReadOnly(permissions.BasePermission):
     def has_object_permission(self, request, view, obj):
         # Allow safe methods (GET, HEAD, OPTIONS)
         if request.method in permissions.SAFE_METHODS:
             return True
-        # Restricted to author for PATCH, PUT, DELETE
+        if (
+            request.method == 'DELETE'
+            and getattr(obj, 'status', None) == 'pending'
+        ):
+            is_close_buddy_moderator = CloseBuddy.objects.filter(
+                user=obj.author,
+                buddy=request.user,
+            ).exists()
+            if is_close_buddy_moderator:
+                return True
+        # PATCH/PUT and non-pending deletion remain restricted to the author.
         return obj.author == request.user
 
 class FeedCursorPagination(CursorPagination):

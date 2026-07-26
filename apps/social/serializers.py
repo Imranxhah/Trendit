@@ -176,7 +176,7 @@ class CloseBuddyRequestSerializer(serializers.ModelSerializer):
             if existing_request.status == 'pending':
                 raise serializers.ValidationError("You already have a pending request to this user.")
             elif existing_request.status == 'accepted':
-                raise serializers.ValidationError("This user is already in your inner circle.")
+                raise serializers.ValidationError("This user is already a Close Buddy.")
             else:
                 raise serializers.ValidationError("A close buddy request has already been sent to this user.")
 
@@ -186,10 +186,10 @@ class CloseBuddyRequestSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("This user has already sent you a close buddy request.")
 
         if CloseBuddy.objects.filter(user=user, buddy=receiver).exists():
-            raise serializers.ValidationError("This user is already in your inner circle.")
+            raise serializers.ValidationError("This user is already a Close Buddy.")
 
         if CloseBuddy.objects.filter(user=user).count() >= 5:
-            raise serializers.ValidationError("Your inner circle is full (max 5 close buddies).")
+            raise serializers.ValidationError("Your Close Buddy list is full (max 5).")
 
         return data
 
@@ -199,7 +199,7 @@ class CloseBuddyRespondSerializer(serializers.Serializer):
     action = serializers.ChoiceField(choices=['accepted', 'rejected', 'ignored'])
 
 
-# ─── Close Buddy (Inner Circle) ───────────────────────────────────────────────
+# ─── Close Buddy ──────────────────────────────────────────────────────────────
 
 class CloseBuddySerializer(serializers.ModelSerializer):
     buddy_details = UserMinimalSerializer(source='buddy', read_only=True)

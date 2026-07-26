@@ -2,7 +2,7 @@ from rest_framework import generics, permissions, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from django.conf import settings
-from django.shortcuts import render
+from django.shortcuts import redirect, render
 from django.utils import timezone
 from datetime import timedelta
 from .models import Notification, Report
@@ -16,6 +16,13 @@ def landing_page(request):
         'apk_download_url': settings.TRENDIT_APK_DOWNLOAD_URL,
         'app_version': settings.TRENDIT_APP_VERSION,
     })
+
+
+def post_share_landing(request, post_id):
+    # Verified Android App Links open the installed app before this view runs.
+    # Browser visitors reach the download landing page instead.
+    return redirect('landing-page')
+
 
 class NotificationListView(generics.ListAPIView):
     serializer_class = NotificationSerializer

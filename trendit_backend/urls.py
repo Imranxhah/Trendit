@@ -18,12 +18,13 @@ from django.contrib import admin
 from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
-from apps.core.views import landing_page
+from apps.core.views import landing_page, post_share_landing
 from apps.social.views import android_asset_links, community_invite_landing
 
 urlpatterns = [
     path('', landing_page, name='landing-page'),
     path('.well-known/assetlinks.json', android_asset_links, name='android-asset-links'),
+    path('post/<int:post_id>', post_share_landing, name='post-share-landing'),
     path('community-invite/<str:token>', community_invite_landing, name='community-invite-landing'),
     path('admin/', admin.site.urls),
     path('api/users/', include('apps.users.urls')),
