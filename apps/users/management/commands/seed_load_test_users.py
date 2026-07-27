@@ -10,46 +10,143 @@ from apps.users.models import Profile
 
 FIRST_NAMES = (
     "Aariz",
-    "Aisha",
+    "Adeel",
+    "Ahsan",
+    "Ahmed",
     "Ali",
-    "Amelia",
+    "Ammar",
     "Arham",
-    "Ayesha",
+    "Asad",
     "Bilal",
-    "Daniel",
-    "Emma",
-    "Fatima",
+    "Daniyal",
+    "Fahad",
+    "Farhan",
+    "Hamza",
+    "Haris",
     "Hassan",
+    "Ibrahim",
     "Imran",
-    "Layla",
-    "Maya",
-    "Noah",
+    "Junaid",
+    "Kamran",
+    "Kashif",
+    "Moiz",
+    "Muhammad",
+    "Mustafa",
+    "Noman",
     "Omar",
-    "Sara",
-    "Sophia",
+    "Osama",
+    "Rehan",
+    "Saad",
+    "Salman",
+    "Shahzaib",
     "Usman",
+    "Abeer",
+    "Aiman",
+    "Aisha",
+    "Aleena",
+    "Alina",
+    "Amna",
+    "Anaya",
+    "Anum",
+    "Areeba",
+    "Ayesha",
+    "Dua",
+    "Eman",
+    "Fatima",
+    "Hania",
+    "Hira",
+    "Iqra",
+    "Laiba",
+    "Maham",
+    "Mahnoor",
+    "Maryam",
+    "Mehwish",
+    "Minal",
+    "Nida",
+    "Noor",
+    "Rabia",
+    "Sana",
+    "Sara",
+    "Sobia",
+    "Zainab",
     "Zara",
 )
 
 LAST_NAMES = (
+    "Abbasi",
+    "Afridi",
     "Ahmed",
+    "Akhtar",
     "Ali",
-    "Brown",
+    "Ansari",
+    "Awan",
+    "Baloch",
+    "Bhatti",
+    "Butt",
+    "Chaudhry",
+    "Dar",
+    "Farooq",
+    "Gill",
+    "Gondal",
+    "Hashmi",
+    "Hayat",
     "Hussain",
     "Iqbal",
-    "Johnson",
+    "Jafri",
+    "Kakar",
+    "Kazmi",
+    "Khalid",
     "Khan",
+    "Khattak",
+    "Khawaja",
+    "Lodhi",
     "Malik",
-    "Martin",
-    "Miller",
-    "Patel",
+    "Marwat",
+    "Masood",
+    "Mirza",
+    "Mughal",
+    "Naqvi",
+    "Niazi",
+    "Qazi",
+    "Qureshi",
+    "Rana",
     "Raza",
+    "Rizvi",
+    "Saeed",
+    "Sheikh",
     "Shah",
-    "Smith",
-    "Taylor",
+    "Siddiqui",
+    "Tanveer",
+    "Tariq",
+    "Usmani",
+    "Warraich",
+    "Yousaf",
+    "Zaidi",
+    "Zubair",
 )
 
+EMAIL_DOMAINS = ("example.com", "example.net", "example.org")
 PREFIX_PATTERN = re.compile(r"^loadtest(?:_[a-z0-9]+)*$")
+
+
+def build_identity(prefix, index, width):
+    first_name = FIRST_NAMES[(index - 1) % len(FIRST_NAMES)]
+    last_name = LAST_NAMES[
+        ((index - 1) // len(FIRST_NAMES)) % len(LAST_NAMES)
+    ]
+    sequence = f"{index:0{width}d}"
+    first_slug = first_name.lower()
+    last_slug = last_name.lower()
+    return {
+        "username": f"{prefix}_{first_slug}_{last_slug}_{sequence}",
+        "email": (
+            f"{first_slug}.{last_slug}.{sequence}@"
+            f"{EMAIL_DOMAINS[(index - 1) % len(EMAIL_DOMAINS)]}"
+        ),
+        "phone_number": f"+9236{index:08d}",
+        "first_name": first_name,
+        "last_name": last_name,
+    }
 
 
 class Command(BaseCommand):
@@ -137,26 +234,36 @@ class Command(BaseCommand):
             return
 
         width = max(4, len(str(count)))
-        target_usernames = [
-            f"{prefix}_{index:0{width}d}" for index in range(1, count + 1)
+        identities = [
+            build_identity(prefix, index, width)
+            for index in range(1, count + 1)
         ]
+        target_usernames = [identity["username"] for identity in identities]
+        unexpected_count = dataset_users.exclude(
+            username__in=target_usernames
+        ).count()
+        if unexpected_count:
+            raise CommandError(
+                f"Found {unexpected_count} users from an older '{prefix}_' "
+                "dataset. Delete that dataset before creating the new one."
+            )
+
         existing_usernames = set(
             User.objects.filter(username__in=target_usernames).values_list(
                 "username", flat=True
             )
         )
-        missing_usernames = [
-            username
-            for username in target_usernames
-            if username not in existing_usernames
+        missing_identities = [
+            identity
+            for identity in identities
+            if identity["username"] not in existing_usernames
         ]
 
         expected_emails = [
-            f"{username}@users.invalid" for username in missing_usernames
+            identity["email"] for identity in missing_identities
         ]
         conflicting_emails = list(
             User.objects.filter(email__in=expected_emails)
-            .exclude(username__in=missing_usernames)
             .values_list("email", flat=True)[:5]
         )
         if conflicting_emails:
@@ -165,24 +272,36 @@ class Command(BaseCommand):
                 f"already used: {', '.join(conflicting_emails)}"
             )
 
+        expected_phone_numbers = [
+            identity["phone_number"] for identity in missing_identities
+        ]
+        conflicting_phone_numbers = list(
+            User.objects.filter(phone_number__in=expected_phone_numbers)
+            .values_list("phone_number", flat=True)[:5]
+        )
+        if conflicting_phone_numbers:
+            raise CommandError(
+                "Cannot create the dataset because reserved synthetic phone "
+                "numbers are already used: "
+                f"{', '.join(map(str, conflicting_phone_numbers))}"
+            )
+
         if dry_run:
             self.stdout.write(
                 f"Dry run: target={count}, existing={len(existing_usernames)}, "
-                f"would_create={len(missing_usernames)}, prefix='{prefix}_'."
+                f"would_create={len(missing_identities)}, prefix='{prefix}_'."
             )
             return
 
         user_objects = []
-        for username in missing_usernames:
-            dataset_index = int(username.rsplit("_", 1)[1])
+        for identity in missing_identities:
             user_objects.append(
                 User(
-                    username=username,
-                    email=f"{username}@users.invalid",
-                    first_name=FIRST_NAMES[(dataset_index - 1) % len(FIRST_NAMES)],
-                    last_name=LAST_NAMES[
-                        ((dataset_index - 1) // len(FIRST_NAMES)) % len(LAST_NAMES)
-                    ],
+                    username=identity["username"],
+                    email=identity["email"],
+                    phone_number=identity["phone_number"],
+                    first_name=identity["first_name"],
+                    last_name=identity["last_name"],
                     password=make_password(None),
                     is_active=True,
                     is_verified=True,

@@ -1,3 +1,4 @@
+import re
 from io import StringIO
 
 from django.contrib.auth import get_user_model
@@ -34,8 +35,26 @@ class SeedLoadTestUsersCommandTests(TestCase):
         )
         self.assertTrue(all(not user.has_usable_password() for user in users))
         self.assertTrue(
-            all(user.email.endswith("@users.invalid") for user in users)
+            all(
+                re.fullmatch(
+                    r"[a-z]+\.[a-z]+\.\d{4}@example\.(com|net|org)",
+                    user.email,
+                )
+                for user in users
+            )
         )
+        self.assertEqual(
+            users.values("phone_number").distinct().count(),
+            12,
+        )
+        self.assertTrue(
+            all(str(user.phone_number).startswith("+9236") for user in users)
+        )
+        first_user = users.order_by("username").first()
+        self.assertEqual(first_user.first_name, "Aariz")
+        self.assertEqual(first_user.last_name, "Abbasi")
+        self.assertEqual(first_user.email, "aariz.abbasi.0001@example.com")
+        self.assertEqual(str(first_user.phone_number), "+923600000001")
         self.assertIn("created=12", output.getvalue())
 
     def test_command_is_idempotent_and_cleanup_removes_only_its_dataset(self):
