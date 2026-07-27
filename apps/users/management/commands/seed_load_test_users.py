@@ -143,7 +143,7 @@ def build_identity(prefix, index, width):
             f"{first_slug}.{last_slug}.{sequence}@"
             f"{EMAIL_DOMAINS[(index - 1) % len(EMAIL_DOMAINS)]}"
         ),
-        "phone_number": f"+9236{index:08d}",
+        "phone_number": f"+92355{index:07d}",
         "first_name": first_name,
         "last_name": last_name,
     }

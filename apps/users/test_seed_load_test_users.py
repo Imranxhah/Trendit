@@ -48,13 +48,14 @@ class SeedLoadTestUsersCommandTests(TestCase):
             12,
         )
         self.assertTrue(
-            all(str(user.phone_number).startswith("+9236") for user in users)
+            all(str(user.phone_number).startswith("+92355") for user in users)
         )
+        self.assertTrue(all(user.phone_number.is_valid() for user in users))
         first_user = users.order_by("username").first()
         self.assertEqual(first_user.first_name, "Aariz")
         self.assertEqual(first_user.last_name, "Abbasi")
         self.assertEqual(first_user.email, "aariz.abbasi.0001@example.com")
-        self.assertEqual(str(first_user.phone_number), "+923600000001")
+        self.assertEqual(str(first_user.phone_number), "+923550000001")
         self.assertIn("created=12", output.getvalue())
 
     def test_command_is_idempotent_and_cleanup_removes_only_its_dataset(self):
