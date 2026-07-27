@@ -219,9 +219,12 @@
 
   const explorer = document.querySelector("[data-screen-explorer]");
   if (explorer) {
-    const tabs = Array.from(explorer.querySelectorAll("[data-screen]"));
+    const tabs = Array.from(explorer.querySelectorAll("[data-screen-one]"));
     const stage = explorer.querySelector(".screen-stage");
-    const image = explorer.querySelector("[data-screen-image]");
+    const imageOne = explorer.querySelector("[data-screen-image-one]");
+    const imageTwo = explorer.querySelector("[data-screen-image-two]");
+    const titleOne = explorer.querySelector("[data-screen-title-one]");
+    const titleTwo = explorer.querySelector("[data-screen-title-two]");
     const label = explorer.querySelector("[data-screen-label]");
     const copy = explorer.querySelector("[data-screen-copy]");
     const counter = explorer.querySelector("[data-current-screen]");
@@ -231,16 +234,23 @@
     let pointerStart = null;
 
     tabs.forEach((tab) => {
-      const preload = new Image();
-      preload.src = tab.dataset.screen;
+      [tab.dataset.screenOne, tab.dataset.screenTwo].forEach((source) => {
+        if (!source) return;
+        const preload = new Image();
+        preload.src = source;
+      });
     });
 
     const showScreen = (nextIndex, shouldFocus = false) => {
-      if (!tabs.length || !image || !stage) return;
+      if (!tabs.length || !imageOne || !imageTwo || !stage) return;
 
       const normalizedIndex = (nextIndex + tabs.length) % tabs.length;
       const nextTab = tabs[normalizedIndex];
-      if (normalizedIndex === activeIndex && image.src.endsWith(nextTab.dataset.screen)) return;
+      if (
+        normalizedIndex === activeIndex
+        && imageOne.src.endsWith(nextTab.dataset.screenOne)
+        && imageTwo.src.endsWith(nextTab.dataset.screenTwo)
+      ) return;
 
       activeIndex = normalizedIndex;
       tabs.forEach((tab, index) => {
@@ -251,8 +261,12 @@
       });
 
       const commitImage = () => {
-        image.src = nextTab.dataset.screen;
-        image.alt = nextTab.dataset.alt || "Trendit app screen";
+        imageOne.src = nextTab.dataset.screenOne;
+        imageTwo.src = nextTab.dataset.screenTwo;
+        imageOne.alt = nextTab.dataset.altOne || "Trendit app screen";
+        imageTwo.alt = nextTab.dataset.altTwo || "Trendit app screen";
+        if (titleOne) titleOne.textContent = nextTab.dataset.titleOne;
+        if (titleTwo) titleTwo.textContent = nextTab.dataset.titleTwo;
         if (label) label.textContent = nextTab.dataset.label;
         if (copy) copy.textContent = nextTab.dataset.copy;
         if (counter) counter.textContent = String(activeIndex + 1).padStart(2, "0");
@@ -266,17 +280,24 @@
       if (reducedMotion) {
         commitImage();
       } else {
-        const nextImage = new Image();
-        nextImage.onload = commitImage;
-        nextImage.onerror = () => stage.classList.remove("is-changing");
-        nextImage.src = nextTab.dataset.screen;
+        const sources = [nextTab.dataset.screenOne, nextTab.dataset.screenTwo];
+        Promise.all(sources.map((source) => new Promise((resolve, reject) => {
+          const nextImage = new Image();
+          nextImage.onload = resolve;
+          nextImage.onerror = reject;
+          nextImage.src = source;
+        }))).then(commitImage).catch(() => stage.classList.remove("is-changing"));
       }
 
-      nextTab.scrollIntoView({
-        behavior: reducedMotion ? "auto" : "smooth",
-        block: "nearest",
-        inline: "center",
-      });
+      const tabList = nextTab.parentElement;
+      if (tabList) {
+        const targetLeft = nextTab.offsetLeft
+          - ((tabList.clientWidth - nextTab.offsetWidth) / 2);
+        tabList.scrollTo({
+          left: Math.max(targetLeft, 0),
+          behavior: reducedMotion ? "auto" : "smooth",
+        });
+      }
 
       if (shouldFocus) nextTab.focus();
     };

@@ -125,22 +125,26 @@
           <p class="section-kicker">The real product</p>
           <h2>Take a look inside.</h2>
         </div>
-        <p>Seven core experiences, shown exactly where they belong: on the phone. Choose a screen to explore the app before you download it.</p>
+        <p>Seven product screens, paired into four practical journeys. Choose a tab to explore more of the app before you download it.</p>
       </div>
 
-      <div class="screen-tabs reveal" role="tablist" aria-label="Trendit app screens">
+      <div class="screen-tabs reveal" role="tablist" aria-label="Trendit app experiences">
         <button
           class="screen-tab is-active"
           type="button"
           role="tab"
           aria-selected="true"
           data-index="0"
-          data-label="Trending"
-          data-copy="Live discovery shaped by community ratings."
-          data-screen="{% static 'core/images/landing/trending.webp' %}"
-          data-alt="Trendit trending feed with content filters and a rich media post">
-          <i data-lucide="flame" aria-hidden="true"></i>
-          <span>Trending</span>
+          data-label="Discover"
+          data-copy="Move from the live ranking into a complete post without losing context."
+          data-screen-one="{% static 'core/images/landing/trending.webp' %}"
+          data-screen-two="{% static 'core/images/landing/posts.webp' %}"
+          data-title-one="Trending feed"
+          data-title-two="Post detail"
+          data-alt-one="Trendit trending feed with category and community filters"
+          data-alt-two="Trendit post detail with media, ratings and reactions">
+          <i data-lucide="compass" aria-hidden="true"></i>
+          <span>Discover</span>
         </button>
         <button
           class="screen-tab"
@@ -148,23 +152,14 @@
           role="tab"
           aria-selected="false"
           data-index="1"
-          data-label="Posts"
-          data-copy="Creator-first media with quick reactions and ratings."
-          data-screen="{% static 'core/images/landing/posts.webp' %}"
-          data-alt="Trendit post detail with rich media and community rating controls">
-          <i data-lucide="images" aria-hidden="true"></i>
-          <span>Posts</span>
-        </button>
-        <button
-          class="screen-tab"
-          type="button"
-          role="tab"
-          aria-selected="false"
-          data-index="2"
           data-label="Create"
-          data-copy="Focused photo and video editing before you publish."
-          data-screen="{% static 'core/images/landing/editing.webp' %}"
-          data-alt="Trendit media editor with live preview, filters and intensity control">
+          data-copy="Edit media with precision, then see the rich post experience it becomes."
+          data-screen-one="{% static 'core/images/landing/editing.webp' %}"
+          data-screen-two="{% static 'core/images/landing/posts.webp' %}"
+          data-title-one="Media editor"
+          data-title-two="Published post"
+          data-alt-one="Trendit media editor with live preview, filters and intensity control"
+          data-alt-two="Trendit published post with rich media and community rating controls">
           <i data-lucide="wand-sparkles" aria-hidden="true"></i>
           <span>Create</span>
         </button>
@@ -173,52 +168,34 @@
           type="button"
           role="tab"
           aria-selected="false"
-          data-index="3"
-          data-label="Communities"
-          data-copy="Search city-based spaces and discover nearby groups."
-          data-screen="{% static 'core/images/landing/communities.webp' %}"
-          data-alt="Trendit communities with search, location and member details">
+          data-index="2"
+          data-label="Connect"
+          data-copy="Find the right community, then continue the relationship through rich messaging."
+          data-screen-one="{% static 'core/images/landing/communities.webp' %}"
+          data-screen-two="{% static 'core/images/landing/messages.webp' %}"
+          data-title-one="Communities"
+          data-title-two="Messages"
+          data-alt-one="Trendit communities with search, location and member details"
+          data-alt-two="Trendit conversation in light and dark mode with media and voice messages">
           <i data-lucide="users-round" aria-hidden="true"></i>
-          <span>Communities</span>
+          <span>Connect</span>
         </button>
         <button
           class="screen-tab"
           type="button"
           role="tab"
           aria-selected="false"
-          data-index="4"
-          data-label="Messages"
-          data-copy="Text, photos, video, voice and reactions in light or dark."
-          data-screen="{% static 'core/images/landing/messages.webp' %}"
-          data-alt="Trendit conversation in light and dark mode with media and voice messages">
-          <i data-lucide="message-circle-more" aria-hidden="true"></i>
-          <span>Messages</span>
-        </button>
-        <button
-          class="screen-tab"
-          type="button"
-          role="tab"
-          aria-selected="false"
-          data-index="5"
-          data-label="Notifications"
-          data-copy="Action-ready updates that take you where they matter."
-          data-screen="{% static 'core/images/landing/notifications.webp' %}"
-          data-alt="Trendit notifications grouped by time with user profile photos">
+          data-index="3"
+          data-label="Stay current"
+          data-copy="Act on meaningful updates and return to a profile that keeps everything organized."
+          data-screen-one="{% static 'core/images/landing/notifications.webp' %}"
+          data-screen-two="{% static 'core/images/landing/profile.webp' %}"
+          data-title-one="Notifications"
+          data-title-two="Profile"
+          data-alt-one="Trendit notifications grouped by time with user profile photos"
+          data-alt-two="Trendit profile with social stats, buddy spaces and a post grid">
           <i data-lucide="bell-ring" aria-hidden="true"></i>
-          <span>Notifications</span>
-        </button>
-        <button
-          class="screen-tab"
-          type="button"
-          role="tab"
-          aria-selected="false"
-          data-index="6"
-          data-label="Profile"
-          data-copy="A clean home for posts, followers, buddies and close buddies."
-          data-screen="{% static 'core/images/landing/profile.webp' %}"
-          data-alt="Trendit profile with social stats, buddy spaces and post grid">
-          <i data-lucide="circle-user-round" aria-hidden="true"></i>
-          <span>Profile</span>
+          <span>Stay current</span>
         </button>
       </div>
 
@@ -226,18 +203,32 @@
         <div class="screen-counter" aria-hidden="true">
           <span data-current-screen>01</span>
           <i></i>
-          <span>07</span>
+          <span>04</span>
         </div>
         <figure>
-          <img
-            src="{% static 'core/images/landing/trending.webp' %}"
-            alt="Trendit trending feed with content filters and a rich media post"
-            width="1448"
-            height="1086"
-            data-screen-image>
+          <div class="screen-pair">
+            <div class="screen-shot">
+              <span data-screen-title-one>Trending feed</span>
+              <img
+                src="{% static 'core/images/landing/trending.webp' %}"
+                alt="Trendit trending feed with category and community filters"
+                width="1448"
+                height="1086"
+                data-screen-image-one>
+            </div>
+            <div class="screen-shot">
+              <span data-screen-title-two>Post detail</span>
+              <img
+                src="{% static 'core/images/landing/posts.webp' %}"
+                alt="Trendit post detail with media, ratings and reactions"
+                width="1448"
+                height="1086"
+                data-screen-image-two>
+            </div>
+          </div>
           <figcaption aria-live="polite">
-            <strong data-screen-label>Trending</strong>
-            <span data-screen-copy>Live discovery shaped by community ratings.</span>
+            <strong data-screen-label>Discover</strong>
+            <span data-screen-copy>Move from the live ranking into a complete post without losing context.</span>
           </figcaption>
         </figure>
         <div class="screen-controls" aria-label="Screen gallery controls">
