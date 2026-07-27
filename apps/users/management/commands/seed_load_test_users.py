@@ -2,8 +2,10 @@ import re
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.hashers import make_password
+from django.contrib.auth.models import Group
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
+from django.db.models import Q
 
 from apps.users.models import Profile
 
@@ -126,10 +128,11 @@ LAST_NAMES = (
 )
 
 EMAIL_DOMAINS = ("example.com", "example.net", "example.org")
+LOAD_TEST_GROUP_NAME = "__trendit_load_test_users__"
 PREFIX_PATTERN = re.compile(r"^loadtest(?:_[a-z0-9]+)*$")
 
 
-def build_identity(prefix, index, width):
+def build_identity(index, width):
     first_name = FIRST_NAMES[(index - 1) % len(FIRST_NAMES)]
     last_name = LAST_NAMES[
         ((index - 1) // len(FIRST_NAMES)) % len(LAST_NAMES)
@@ -137,8 +140,12 @@ def build_identity(prefix, index, width):
     sequence = f"{index:0{width}d}"
     first_slug = first_name.lower()
     last_slug = last_name.lower()
+    username_cycle = (index - 1) // (len(FIRST_NAMES) * len(LAST_NAMES))
+    username = f"{first_slug}.{last_slug}"
+    if username_cycle:
+        username = f"{username}.{username_cycle + 1}"
     return {
-        "username": f"{prefix}_{first_slug}_{last_slug}_{sequence}",
+        "username": username,
         "email": (
             f"{first_slug}.{last_slug}.{sequence}@"
             f"{EMAIL_DOMAINS[(index - 1) % len(EMAIL_DOMAINS)]}"
@@ -165,7 +172,7 @@ class Command(BaseCommand):
         parser.add_argument(
             "--prefix",
             default="loadtest",
-            help="Dataset marker used in usernames (default: loadtest).",
+            help="Legacy username marker used to clean older datasets.",
         )
         parser.add_argument(
             "--batch-size",
@@ -212,46 +219,72 @@ class Command(BaseCommand):
             )
 
         User = get_user_model()
-        dataset_users = User.objects.filter(username__startswith=f"{prefix}_")
+        legacy_users = User.objects.filter(
+            username__startswith=f"{prefix}_"
+        )
+        group_users = User.objects.filter(
+            groups__name=LOAD_TEST_GROUP_NAME
+        )
+        dataset_users = User.objects.filter(
+            Q(username__startswith=f"{prefix}_")
+            | Q(groups__name=LOAD_TEST_GROUP_NAME)
+        ).distinct()
 
         if should_delete:
             existing_count = dataset_users.count()
             if dry_run:
                 self.stdout.write(
-                    f"Dry run: would delete {existing_count} users with prefix "
-                    f"'{prefix}_'."
+                    f"Dry run: would delete {existing_count} internally marked "
+                    "load-test users."
                 )
                 return
 
             with transaction.atomic():
                 dataset_users.delete()
+                Group.objects.filter(name=LOAD_TEST_GROUP_NAME).delete()
             self.stdout.write(
                 self.style.SUCCESS(
-                    f"Deleted {existing_count} load-test users with prefix "
-                    f"'{prefix}_'."
+                    f"Deleted {existing_count} internally marked load-test users."
                 )
             )
             return
 
         width = max(4, len(str(count)))
         identities = [
-            build_identity(prefix, index, width)
+            build_identity(index, width)
             for index in range(1, count + 1)
         ]
         target_usernames = [identity["username"] for identity in identities]
-        unexpected_count = dataset_users.exclude(
+        legacy_count = legacy_users.count()
+        if legacy_count:
+            raise CommandError(
+                f"Found {legacy_count} users from the older visible-prefix "
+                "dataset. Delete that dataset before creating the new one."
+            )
+
+        unexpected_count = group_users.exclude(
             username__in=target_usernames
         ).count()
         if unexpected_count:
             raise CommandError(
-                f"Found {unexpected_count} users from an older '{prefix}_' "
+                f"Found {unexpected_count} unexpected users in the internal "
                 "dataset. Delete that dataset before creating the new one."
             )
 
-        existing_usernames = set(
-            User.objects.filter(username__in=target_usernames).values_list(
-                "username", flat=True
+        conflicting_usernames = list(
+            User.objects.filter(username__in=target_usernames)
+            .exclude(groups__name=LOAD_TEST_GROUP_NAME)
+            .values_list("username", flat=True)[:5]
+        )
+        if conflicting_usernames:
+            raise CommandError(
+                "Cannot create realistic test usernames because they are already "
+                f"used by real accounts: {', '.join(conflicting_usernames)}"
             )
+
+        existing_usernames = set(
+            group_users.filter(username__in=target_usernames)
+            .values_list("username", flat=True)
         )
         missing_identities = [
             identity
@@ -289,7 +322,7 @@ class Command(BaseCommand):
         if dry_run:
             self.stdout.write(
                 f"Dry run: target={count}, existing={len(existing_usernames)}, "
-                f"would_create={len(missing_identities)}, prefix='{prefix}_'."
+                f"would_create={len(missing_identities)}, marker=internal-group."
             )
             return
 
@@ -310,6 +343,9 @@ class Command(BaseCommand):
             )
 
         with transaction.atomic():
+            test_group, _ = Group.objects.get_or_create(
+                name=LOAD_TEST_GROUP_NAME
+            )
             if user_objects:
                 User.objects.bulk_create(user_objects, batch_size=batch_size)
 
@@ -332,11 +368,30 @@ class Command(BaseCommand):
                 batch_size=batch_size,
                 ignore_conflicts=True,
             )
+            existing_memberships = set(
+                test_group.user_set.filter(id__in=dataset_user_ids)
+                .values_list("id", flat=True)
+            )
+            User.groups.through.objects.bulk_create(
+                [
+                    User.groups.through(
+                        user_id=user_id,
+                        group_id=test_group.id,
+                    )
+                    for user_id in dataset_user_ids
+                    if user_id not in existing_memberships
+                ],
+                batch_size=batch_size,
+                ignore_conflicts=True,
+            )
 
-        final_count = User.objects.filter(username__in=target_usernames).count()
+        final_count = User.objects.filter(
+            username__in=target_usernames,
+            groups__name=LOAD_TEST_GROUP_NAME,
+        ).count()
         self.stdout.write(
             self.style.SUCCESS(
                 f"Load-test dataset ready: target={count}, created="
-                f"{len(user_objects)}, total={final_count}, prefix='{prefix}_'."
+                f"{len(user_objects)}, total={final_count}, marker=internal-group."
             )
         )
