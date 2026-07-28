@@ -22,6 +22,15 @@ class AppSettings(models.Model):
     def __str__(self):
         return "Global App Settings"
 
+
+class ApkDownloadCounter(models.Model):
+    count = models.PositiveBigIntegerField(default=3017)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.count:,} APK downloads"
+
+
 class Notification(models.Model):
     recipient = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='notifications')
     actor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='actions_performed')

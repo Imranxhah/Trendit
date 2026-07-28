@@ -2,20 +2,48 @@ from rest_framework import generics, permissions, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from django.conf import settings
+from django.db import transaction
+from django.db.models import F
+from django.http import JsonResponse
 from django.shortcuts import redirect, render
 from django.utils import timezone
+from django.views.decorators.csrf import ensure_csrf_cookie
+from django.views.decorators.http import require_POST
 from datetime import timedelta
-from .models import Notification, Report
+from .models import ApkDownloadCounter, Notification, Report
 from .serializers import NotificationSerializer, ReportSerializer
 import cloudinary
 import cloudinary.uploader
 
 
+@ensure_csrf_cookie
 def landing_page(request):
+    download_counter, _ = ApkDownloadCounter.objects.get_or_create(
+        pk=1,
+        defaults={"count": 3017},
+    )
     return render(request, 'core/landing_page.html', {
         'apk_download_url': settings.TRENDIT_APK_DOWNLOAD_URL,
         'app_version': settings.TRENDIT_APP_VERSION,
+        'download_count': download_counter.count,
+        'download_count_display': f"{download_counter.count:,}",
     })
+
+
+@require_POST
+def record_apk_download(request):
+    with transaction.atomic():
+        download_counter, _ = ApkDownloadCounter.objects.get_or_create(
+            pk=1,
+            defaults={"count": 3017},
+        )
+        ApkDownloadCounter.objects.filter(pk=download_counter.pk).update(
+            count=F("count") + 1,
+            updated_at=timezone.now(),
+        )
+        download_counter.refresh_from_db(fields=["count", "updated_at"])
+
+    return JsonResponse({"downloads": download_counter.count})
 
 
 def post_share_landing(request, post_id):

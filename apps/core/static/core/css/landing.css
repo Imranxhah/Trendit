@@ -423,6 +423,36 @@ svg {
   border-color: var(--white);
 }
 
+.download-proof {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: fit-content;
+  margin-top: 17px;
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.download-proof svg {
+  width: 15px;
+  height: 15px;
+  color: var(--lime);
+}
+
+.download-proof strong {
+  color: var(--white);
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 17px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+}
+
+.download-proof.is-updating strong {
+  animation: download-count-pulse 420ms ease;
+}
+
 .hero-meta {
   display: flex;
   flex-wrap: wrap;
@@ -1211,6 +1241,21 @@ svg {
   }
 }
 
+@keyframes download-count-pulse {
+  0% {
+    color: var(--white);
+    transform: translateY(0);
+  }
+  45% {
+    color: var(--lime);
+    transform: translateY(-3px);
+  }
+  100% {
+    color: var(--white);
+    transform: translateY(0);
+  }
+}
+
 @media (min-width: 901px) {
   html {
     zoom: 0.72;
@@ -1457,6 +1502,10 @@ svg {
 
   .hero-meta {
     margin-top: 17px;
+  }
+
+  .download-proof {
+    margin-top: 14px;
   }
 
   .hero-meta span:nth-child(3) {

@@ -19,7 +19,10 @@
   <script defer src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.min.js"></script>
   <script defer src="{% static 'core/js/landing.js' %}"></script>
 </head>
-<body>
+<body
+  data-download-count="{{ download_count }}"
+  data-download-count-url="{% url 'apk-download-count' %}"
+>
   <div class="scroll-progress" aria-hidden="true"><span></span></div>
 
   <header class="site-header" data-header>
@@ -82,6 +85,11 @@
             <i data-lucide="arrow-down" aria-hidden="true"></i>
             <span>Explore Trendit</span>
           </a>
+        </div>
+        <div class="download-proof" aria-live="polite" aria-atomic="true">
+          <i data-lucide="download-cloud" aria-hidden="true"></i>
+          <strong data-download-count>{{ download_count_display }}</strong>
+          <span>total downloads</span>
         </div>
         <div class="hero-meta" aria-label="App information">
           <span>Android APK</span>

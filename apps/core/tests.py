@@ -1,7 +1,7 @@
-from django.test import TestCase
+from django.test import Client, TestCase
 from django.test import override_settings
 from django.urls import reverse
-from .models import AppSettings, Notification, Report
+from .models import ApkDownloadCounter, AppSettings, Notification, Report
 from django.contrib.auth import get_user_model
 from apps.content.models import Post, Category
 from .serializers import NotificationSerializer
@@ -54,6 +54,12 @@ class CoreModelTests(TestCase):
 
 
 class LandingPageTests(TestCase):
+    def setUp(self):
+        ApkDownloadCounter.objects.update_or_create(
+            pk=1,
+            defaults={"count": 3017},
+        )
+
     @override_settings(
         TRENDIT_APK_DOWNLOAD_URL='https://example.com/releases/trendit.apk',
         TRENDIT_APP_VERSION='9.4.1',
@@ -64,7 +70,37 @@ class LandingPageTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'https://example.com/releases/trendit.apk')
         self.assertContains(response, 'Version 9.4.1')
+        self.assertContains(response, '3,017')
+        self.assertContains(response, 'total downloads')
         self.assertTemplateUsed(response, 'core/landing_page.html')
+
+    def test_apk_download_click_increments_persistent_counter(self):
+        response = self.client.post(reverse('apk-download-count'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {"downloads": 3018})
+        self.assertEqual(ApkDownloadCounter.objects.get(pk=1).count, 3018)
+
+        landing_response = self.client.get(reverse('landing-page'))
+        self.assertContains(landing_response, '3,018')
+
+    def test_landing_page_view_does_not_increment_counter(self):
+        self.client.get(reverse('landing-page'))
+
+        self.assertEqual(ApkDownloadCounter.objects.get(pk=1).count, 3017)
+
+    def test_browser_click_can_increment_with_csrf_protection(self):
+        browser_client = Client(enforce_csrf_checks=True)
+        browser_client.get(reverse('landing-page'))
+        csrf_token = browser_client.cookies['csrftoken'].value
+
+        response = browser_client.post(
+            reverse('apk-download-count'),
+            {'csrfmiddlewaretoken': csrf_token},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {"downloads": 3018})
 
     def test_post_share_browser_falls_back_to_landing_page(self):
         response = self.client.get(

@@ -31,6 +31,58 @@
 
   updateScrollEffects();
 
+  const downloadCountUrl = document.body.dataset.downloadCountUrl;
+  const downloadCountNodes = document.querySelectorAll("[data-download-count]");
+  const downloadProof = document.querySelector(".download-proof");
+  let displayedDownloadCount = Number.parseInt(
+    document.body.dataset.downloadCount || "0",
+    10,
+  );
+
+  const formatDownloadCount = (count) => new Intl.NumberFormat("en-US").format(count);
+
+  const updateDownloadCount = (count) => {
+    if (!Number.isFinite(count)) return;
+    displayedDownloadCount = count;
+    downloadCountNodes.forEach((node) => {
+      node.textContent = formatDownloadCount(count);
+    });
+    downloadProof?.classList.remove("is-updating");
+    window.requestAnimationFrame(() => {
+      downloadProof?.classList.add("is-updating");
+    });
+  };
+
+  const getCookie = (name) => {
+    const cookie = document.cookie
+      .split(";")
+      .map((part) => part.trim())
+      .find((part) => part.startsWith(`${name}=`));
+    return cookie ? decodeURIComponent(cookie.slice(name.length + 1)) : "";
+  };
+
+  document.querySelectorAll("[data-download-link]").forEach((link) => {
+    link.addEventListener("click", () => {
+      if (!downloadCountUrl) return;
+
+      updateDownloadCount(displayedDownloadCount + 1);
+      const csrfToken = getCookie("csrftoken");
+      const payload = new FormData();
+      payload.append("csrfmiddlewaretoken", csrfToken);
+
+      if (navigator.sendBeacon?.(downloadCountUrl, payload)) return;
+
+      fetch(downloadCountUrl, {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "X-CSRFToken": csrfToken },
+        keepalive: true,
+      }).catch(() => {
+        // The browser may already be following the APK link.
+      });
+    });
+  });
+
   const trendCanvas = document.querySelector("[data-trend-field]");
   if (trendCanvas && hero) {
     const context = trendCanvas.getContext("2d", { alpha: false });
