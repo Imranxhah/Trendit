@@ -1,8 +1,9 @@
 from django.urls import reverse
+from django.core.cache import cache
 from rest_framework import status
 from rest_framework.test import APITestCase
 from django.contrib.auth import get_user_model
-from .models import ChatReport, OTPVerification, UserViolation
+from .models import ChatReport, OTPVerification, UserDevice, UserViolation
 from apps.social.models import Buddy, CloseBuddy
 
 from django.utils import timezone
@@ -24,6 +25,7 @@ class ChatSafetyTests(APITestCase):
         self.relationship_url = reverse('chat-relationship', args=[self.other.pk])
         self.report_url = reverse('chat-report')
         self.client.force_authenticate(user=self.user)
+        cache.clear()
 
     def test_user_can_block_and_unblock_chat_participant(self):
         response = self.client.post(self.relationship_url)
@@ -81,6 +83,38 @@ class ChatSafetyTests(APITestCase):
         analyze.assert_not_called()
         send_push.assert_called_once()
         self.assertTrue(send_push.call_args.kwargs['display_notification'])
+        payload = send_push.call_args.kwargs['data']
+        self.assertEqual(payload['type'], 'chat_message')
+        self.assertEqual(payload['sender_username'], self.user.username)
+        self.assertEqual(payload['unread_count'], '1')
+
+    @patch('apps.core.fcm_utils.send_push_notification')
+    @patch('firebase_admin.firestore.client')
+    def test_chat_notification_retry_is_deduplicated(
+        self, firestore_client, send_push
+    ):
+        firestore_client.return_value.collection.return_value.document.return_value.get.return_value.exists = False
+        send_push.return_value = {
+            'success_count': 1,
+            'failure_count': 0,
+            'device_count': 1,
+        }
+        room_id = '_'.join(sorted([str(self.user.pk), str(self.other.pk)]))
+        payload = {
+            'receiver_id': self.other.pk,
+            'room_id': room_id,
+            'message_id': 'message-1',
+            'message_type': 'text',
+            'message_text': 'Only notify once.',
+        }
+
+        first = self.client.post(reverse('notify-chat'), payload, format='json')
+        second = self.client.post(reverse('notify-chat'), payload, format='json')
+
+        self.assertEqual(first.status_code, status.HTTP_200_OK)
+        self.assertEqual(second.status_code, status.HTTP_200_OK)
+        self.assertTrue(second.data['deduplicated'])
+        send_push.assert_called_once()
 
     @patch('apps.core.fcm_utils.send_push_notification')
     def test_chat_notification_requires_buddies(self, send_push):
@@ -126,6 +160,73 @@ class ChatSafetyTests(APITestCase):
         self.assertFalse(response.data['is_buddy'])
         self.assertTrue(response.data['is_close_buddy'])
         self.assertTrue(response.data['can_message'])
+
+
+class UserDeviceTokenTests(APITestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(
+            username='device-user',
+            email='device-user@example.com',
+            password='password',
+            is_verified=True,
+        )
+        self.other = User.objects.create_user(
+            username='device-other',
+            email='device-other@example.com',
+            password='password',
+            is_verified=True,
+        )
+        self.url = reverse('update-device-token')
+
+    def test_fcm_token_moves_to_the_current_device_owner(self):
+        self.client.force_authenticate(user=self.user)
+        self.client.post(
+            self.url,
+            {'device_id': 'old-device', 'fcm_token': 'shared-token'},
+            format='json',
+        )
+
+        self.client.force_authenticate(user=self.other)
+        response = self.client.post(
+            self.url,
+            {'device_id': 'new-device', 'fcm_token': 'shared-token'},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        old_device = UserDevice.objects.get(device_id='old-device')
+        new_device = UserDevice.objects.get(device_id='new-device')
+        self.assertFalse(old_device.is_active)
+        self.assertIsNone(old_device.fcm_token)
+        self.assertEqual(new_device.user, self.other)
+        self.assertTrue(new_device.is_active)
+
+    def test_logout_deactivates_only_the_current_users_device(self):
+        UserDevice.objects.create(
+            user=self.user,
+            device_id='my-device',
+            fcm_token='my-token',
+        )
+        UserDevice.objects.create(
+            user=self.other,
+            device_id='other-device',
+            fcm_token='other-token',
+        )
+        self.client.force_authenticate(user=self.user)
+
+        response = self.client.delete(
+            self.url,
+            {'device_id': 'my-device'},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        mine = UserDevice.objects.get(device_id='my-device')
+        other = UserDevice.objects.get(device_id='other-device')
+        self.assertFalse(mine.is_active)
+        self.assertIsNone(mine.fcm_token)
+        self.assertTrue(other.is_active)
+        self.assertEqual(other.fcm_token, 'other-token')
 
 
 class UserAuthTests(APITestCase):

@@ -1,8 +1,10 @@
 import logging
+from datetime import timedelta
+
 import firebase_admin
 from firebase_admin import messaging
+
 from apps.users.models import UserDevice
-from django.conf import settings
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +26,7 @@ def send_push_notification(
     if not firebase_admin._apps:
         logger.error("Firebase Admin SDK is NOT initialized. Cannot send push notifications. "
                       "Check FIREBASE_CREDENTIALS in .env and ensure the file exists.")
-        return
+        return {"success_count": 0, "failure_count": 0, "device_count": 0}
 
     if data is None:
         data = {}
@@ -47,19 +49,48 @@ def send_push_notification(
     
     if not devices.exists():
         logger.info(f"No active FCM tokens found for user {user.username}")
-        return
+        return {"success_count": 0, "failure_count": 0, "device_count": 0}
 
     tokens = list(devices.values_list('fcm_token', flat=True))
     logger.info(f"Sending FCM to {len(tokens)} device(s) for user {user.username}")
     
-    # Build Android-specific config to ensure high priority delivery
-    android_config = messaging.AndroidConfig(
-        priority='high',
-    )
-    
+    is_chat = stringified_data.get("type") == "chat_message"
+    channel_id = "trendit_messages" if is_chat else "high_importance_channel"
+    notification_count = None
+    if is_chat:
+        try:
+            notification_count = max(1, int(stringified_data.get("unread_count", "1")))
+        except (TypeError, ValueError):
+            notification_count = 1
+
+    android_notification = None
     notification = None
     if display_notification:
+        image_url = stringified_data.get("trigger_user_image")
+        if not image_url or not image_url.startswith(("https://", "http://")):
+            image_url = None
+
         notification = messaging.Notification(title=title, body=body)
+        android_notification = messaging.AndroidNotification(
+            icon="ic_notification",
+            color="#FF6A1A",
+            sound="default",
+            tag=stringified_data.get("notification_tag"),
+            click_action="FLUTTER_NOTIFICATION_CLICK",
+            channel_id=channel_id,
+            image=image_url,
+            notification_count=notification_count,
+            default_vibrate_timings=True,
+            visibility="private",
+        )
+
+    # High priority plus a visible notification payload lets Android wake a
+    # sleeping device and render the message while the app is backgrounded.
+    android_config = messaging.AndroidConfig(
+        priority='high',
+        ttl=timedelta(days=1),
+        notification=android_notification,
+    )
 
     message = messaging.MulticastMessage(
         data=stringified_data,
@@ -87,6 +118,15 @@ def send_push_notification(
             if failed_tokens:
                 UserDevice.objects.filter(fcm_token__in=failed_tokens).update(is_active=False)
                 logger.info(f"Deactivated {len(failed_tokens)} invalid tokens.")
-                
+        return {
+            "success_count": response.success_count,
+            "failure_count": response.failure_count,
+            "device_count": len(tokens),
+        }
     except Exception as e:
-        logger.error(f"Error sending FCM notification: {e}")
+        logger.exception("Error sending FCM notification: %s", e)
+        return {
+            "success_count": 0,
+            "failure_count": len(tokens),
+            "device_count": len(tokens),
+        }

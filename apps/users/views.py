@@ -1,6 +1,7 @@
 from rest_framework import status, generics, permissions
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from django.core.cache import cache
 from django.utils import timezone
 from datetime import timedelta
 from django.shortcuts import get_object_or_404
@@ -360,12 +361,30 @@ class UpdateDeviceTokenView(APIView):
         # Lookup by device_id alone (it's globally unique).
         # If a different user logs in on the same device, reassign it.
         from apps.users.models import UserDevice
+        UserDevice.objects.filter(fcm_token=fcm_token).exclude(
+            device_id=device_id
+        ).update(fcm_token=None, is_active=False)
         device, created = UserDevice.objects.update_or_create(
             device_id=device_id,
             defaults={'user': request.user, 'fcm_token': fcm_token, 'is_active': True}
         )
 
         return Response({"message": "Device token updated successfully."}, status=status.HTTP_200_OK)
+
+    def delete(self, request):
+        device_id = request.data.get('device_id')
+        if not device_id:
+            return Response(
+                {"error": "device_id is required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        from apps.users.models import UserDevice
+        UserDevice.objects.filter(
+            user=request.user,
+            device_id=device_id,
+        ).update(fcm_token=None, is_active=False)
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class TestNotificationView(APIView):
@@ -456,6 +475,7 @@ class SendChatNotificationView(APIView):
         from apps.core.fcm_utils import send_push_notification
         
         receiver_id = request.data.get('receiver_id')
+        message_id = str(request.data.get('message_id') or '').strip()
         message_text = request.data.get('message_text')
         room_id = request.data.get('room_id')
 
@@ -502,6 +522,7 @@ class SendChatNotificationView(APIView):
         }
         notification_body = text if message_type == 'text' else preview_by_type.get(message_type, 'Sent a message')
 
+        unread_count = 1
         try:
             from firebase_admin import firestore
             room_snapshot = firestore.client().collection('chats').document(str(room_id)).get()
@@ -509,27 +530,61 @@ class SendChatNotificationView(APIView):
                 room_data = room_snapshot.to_dict() or {}
                 if str(receiver.id) in room_data.get('mutedBy', []):
                     return Response({'status': 'success', 'message': 'Conversation is muted.'})
+                unread_count = max(
+                    1,
+                    int(room_data.get('unreadCounts', {}).get(str(receiver.id), 1)),
+                )
         except Exception as error:
             # Notification delivery should remain available if Firestore has a temporary issue.
             print(f'Could not check chat mute state for {room_id}: {error}')
 
-        title = f"New message from {request.user.get_full_name() or request.user.username}"
-        
-        send_push_notification(
+        dedupe_key = None
+        if message_id:
+            dedupe_key = f"chat-push:{request.user.id}:{message_id}"
+            if cache.get(dedupe_key):
+                return Response({
+                    'status': 'success',
+                    'message': 'Notification already sent',
+                    'deduplicated': True,
+                })
+
+        display_name = request.user.get_full_name().strip()
+        title = (
+            f"{display_name} (@{request.user.username})"
+            if display_name and display_name != request.user.username
+            else f"@{request.user.username}"
+        )
+
+        delivery = send_push_notification(
             user=receiver,
             title=title,
             body=notification_body[:240],
             data={
                 "type": "chat_message",
                 "room_id": str(room_id),
+                "message_id": message_id,
                 "sender_id": str(request.user.id),
+                "sender_name": display_name or request.user.username,
+                "sender_username": request.user.username,
                 "message_type": message_type,
+                "unread_count": str(unread_count),
+                "notification_tag": f"chat_{room_id}",
             },
             trigger_user=request.user,
             display_notification=True,
         )
+        if not isinstance(delivery, dict):
+            delivery = {}
 
-        return Response({'status': 'success', 'message': 'Notification sent'}, status=status.HTTP_200_OK)
+        if dedupe_key and delivery.get('success_count', 0) > 0:
+            cache.set(dedupe_key, True, timeout=60 * 60 * 24)
+
+        return Response({
+            'status': 'success',
+            'message': 'Notification processed',
+            'delivered_devices': delivery.get('success_count', 0),
+            'failed_devices': delivery.get('failure_count', 0),
+        }, status=status.HTTP_200_OK)
 
 
 class ChatRelationshipView(APIView):
