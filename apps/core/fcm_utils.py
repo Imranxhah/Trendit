@@ -25,6 +25,17 @@ def _prepare_fcm_data(data):
     return prepared
 
 
+def _is_invalid_fcm_token_error(error):
+    error_code = str(getattr(error, "code", "")).lower()
+    error_text = str(error).lower()
+    return (
+        "invalid-registration-token" in error_code
+        or "registration-token-not-registered" in error_code
+        or "not registered" in error_text
+        or "notregistered" in error_text
+    )
+
+
 def send_push_notification(
     user,
     title,
@@ -133,14 +144,7 @@ def send_push_notification(
                         token_hint,
                         resp.exception,
                     )
-                    error_code = str(getattr(resp.exception, "code", "")).lower()
-                    error_text = str(resp.exception).lower()
-                    invalid_token = (
-                        "invalid-registration-token" in error_code
-                        or "registration-token-not-registered" in error_code
-                        or "not registered" in error_text
-                    )
-                    if invalid_token:
+                    if _is_invalid_fcm_token_error(resp.exception):
                         failed_tokens.append(tokens[idx])
                         
             if failed_tokens:

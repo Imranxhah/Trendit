@@ -5,7 +5,7 @@ from .models import ApkDownloadCounter, AppSettings, Notification, Report
 from django.contrib.auth import get_user_model
 from apps.content.models import Post, Category
 from .serializers import NotificationSerializer
-from .fcm_utils import _prepare_fcm_data
+from .fcm_utils import _is_invalid_fcm_token_error, _prepare_fcm_data
 
 User = get_user_model()
 
@@ -21,6 +21,11 @@ class FcmPayloadTests(TestCase):
         self.assertEqual(payload["chat_message_type"], "image")
         self.assertEqual(payload["unread_count"], "2")
         self.assertNotIn("message_type", payload)
+
+    def test_compact_not_registered_error_is_an_invalid_token(self):
+        self.assertTrue(
+            _is_invalid_fcm_token_error(Exception("NotRegistered"))
+        )
 
 
 class CoreModelTests(TestCase):
