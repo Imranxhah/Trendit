@@ -8,6 +8,23 @@ from apps.users.models import UserDevice
 
 logger = logging.getLogger(__name__)
 
+
+_FCM_DATA_KEY_ALIASES = {
+    # `message_type` is reserved by FCM and causes the entire message to fail.
+    "message_type": "chat_message_type",
+}
+
+
+def _prepare_fcm_data(data):
+    prepared = {}
+    for key, value in (data or {}).items():
+        if value is None:
+            continue
+        key = str(key)
+        prepared[_FCM_DATA_KEY_ALIASES.get(key, key)] = str(value)
+    return prepared
+
+
 def send_push_notification(
     user,
     title,
@@ -28,8 +45,7 @@ def send_push_notification(
                       "Check FIREBASE_CREDENTIALS in .env and ensure the file exists.")
         return {"success_count": 0, "failure_count": 0, "device_count": 0}
 
-    if data is None:
-        data = {}
+    data = dict(data or {})
 
     # Pack title and body into data so Flutter can construct the notification locally
     data['title'] = title
@@ -41,8 +57,8 @@ def send_push_notification(
         if trigger_user.profile_picture:
             data['trigger_user_image'] = getattr(trigger_user.profile_picture, 'url', None)
 
-    # Ensure all data values are strings (FCM requirement)
-    stringified_data = {str(k): str(v) for k, v in data.items() if v is not None}
+    # Ensure values are strings and reserved FCM keys are never transmitted.
+    stringified_data = _prepare_fcm_data(data)
 
     # Get all active devices for the user that have an FCM token
     devices = UserDevice.objects.filter(user=user, is_active=True).exclude(fcm_token__isnull=True).exclude(fcm_token="")
@@ -111,8 +127,20 @@ def send_push_notification(
             for idx, resp in enumerate(responses):
                 if not resp.success:
                     # e.g., 'messaging/invalid-registration-token' or 'messaging/registration-token-not-registered'
-                    logger.warning(f"Failed to send to token {tokens[idx]}: {resp.exception}")
-                    if resp.exception and resp.exception.code in ['messaging/invalid-registration-token', 'messaging/registration-token-not-registered']:
+                    token_hint = f"{tokens[idx][:8]}...{tokens[idx][-6:]}"
+                    logger.warning(
+                        "Failed to send to token %s: %s",
+                        token_hint,
+                        resp.exception,
+                    )
+                    error_code = str(getattr(resp.exception, "code", "")).lower()
+                    error_text = str(resp.exception).lower()
+                    invalid_token = (
+                        "invalid-registration-token" in error_code
+                        or "registration-token-not-registered" in error_code
+                        or "not registered" in error_text
+                    )
+                    if invalid_token:
                         failed_tokens.append(tokens[idx])
                         
             if failed_tokens:

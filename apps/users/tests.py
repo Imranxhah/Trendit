@@ -71,6 +71,11 @@ class ChatSafetyTests(APITestCase):
         self, firestore_client, analyze, send_push
     ):
         firestore_client.return_value.collection.return_value.document.return_value.get.return_value.exists = False
+        send_push.return_value = {
+            'success_count': 1,
+            'failure_count': 0,
+            'device_count': 1,
+        }
         room_id = '_'.join(sorted([str(self.user.pk), str(self.other.pk)]))
         response = self.client.post(reverse('notify-chat'), {
             'receiver_id': self.other.pk,
@@ -87,6 +92,36 @@ class ChatSafetyTests(APITestCase):
         self.assertEqual(payload['type'], 'chat_message')
         self.assertEqual(payload['sender_username'], self.user.username)
         self.assertEqual(payload['unread_count'], '1')
+        self.assertEqual(payload['chat_message_type'], 'text')
+        self.assertNotIn('message_type', payload)
+
+    @patch('apps.core.fcm_utils.send_push_notification')
+    @patch('firebase_admin.firestore.client')
+    def test_chat_notification_reports_total_delivery_failure(
+        self, firestore_client, send_push
+    ):
+        firestore_client.return_value.collection.return_value.document.return_value.get.return_value.exists = False
+        send_push.return_value = {
+            'success_count': 0,
+            'failure_count': 1,
+            'device_count': 1,
+        }
+        room_id = '_'.join(sorted([str(self.user.pk), str(self.other.pk)]))
+
+        response = self.client.post(reverse('notify-chat'), {
+            'receiver_id': self.other.pk,
+            'room_id': room_id,
+            'message_id': 'failed-message',
+            'message_type': 'text',
+            'message_text': 'Retry this notification.',
+        }, format='json')
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+        )
+        self.assertEqual(response.data['delivered_devices'], 0)
+        self.assertEqual(response.data['failed_devices'], 1)
 
     @patch('apps.core.fcm_utils.send_push_notification')
     @patch('firebase_admin.firestore.client')

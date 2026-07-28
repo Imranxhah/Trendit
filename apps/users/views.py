@@ -566,7 +566,7 @@ class SendChatNotificationView(APIView):
                 "sender_id": str(request.user.id),
                 "sender_name": display_name or request.user.username,
                 "sender_username": request.user.username,
-                "message_type": message_type,
+                "chat_message_type": message_type,
                 "unread_count": str(unread_count),
                 "notification_tag": f"chat_{room_id}",
             },
@@ -579,12 +579,29 @@ class SendChatNotificationView(APIView):
         if dedupe_key and delivery.get('success_count', 0) > 0:
             cache.set(dedupe_key, True, timeout=60 * 60 * 24)
 
+        delivered_devices = int(delivery.get('success_count', 0) or 0)
+        failed_devices = int(delivery.get('failure_count', 0) or 0)
+        device_count = int(delivery.get('device_count', 0) or 0)
+        all_deliveries_failed = (
+            device_count > 0
+            and delivered_devices == 0
+            and failed_devices > 0
+        )
+
         return Response({
-            'status': 'success',
-            'message': 'Notification processed',
-            'delivered_devices': delivery.get('success_count', 0),
-            'failed_devices': delivery.get('failure_count', 0),
-        }, status=status.HTTP_200_OK)
+            'status': 'error' if all_deliveries_failed else 'success',
+            'message': (
+                'Notification delivery failed'
+                if all_deliveries_failed
+                else 'Notification processed'
+            ),
+            'delivered_devices': delivered_devices,
+            'failed_devices': failed_devices,
+        }, status=(
+            status.HTTP_503_SERVICE_UNAVAILABLE
+            if all_deliveries_failed
+            else status.HTTP_200_OK
+        ))
 
 
 class ChatRelationshipView(APIView):

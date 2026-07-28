@@ -5,8 +5,23 @@ from .models import ApkDownloadCounter, AppSettings, Notification, Report
 from django.contrib.auth import get_user_model
 from apps.content.models import Post, Category
 from .serializers import NotificationSerializer
+from .fcm_utils import _prepare_fcm_data
 
 User = get_user_model()
+
+
+class FcmPayloadTests(TestCase):
+    def test_reserved_message_type_key_is_remapped(self):
+        payload = _prepare_fcm_data({
+            "type": "chat_message",
+            "message_type": "image",
+            "unread_count": 2,
+        })
+
+        self.assertEqual(payload["chat_message_type"], "image")
+        self.assertEqual(payload["unread_count"], "2")
+        self.assertNotIn("message_type", payload)
+
 
 class CoreModelTests(TestCase):
     def setUp(self):
