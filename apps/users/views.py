@@ -549,11 +549,7 @@ class SendChatNotificationView(APIView):
                 })
 
         display_name = request.user.get_full_name().strip()
-        title = (
-            f"{display_name} (@{request.user.username})"
-            if display_name and display_name != request.user.username
-            else f"@{request.user.username}"
-        )
+        title = display_name or 'Trendit user'
 
         delivery = send_push_notification(
             user=receiver,

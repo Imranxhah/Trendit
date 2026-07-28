@@ -16,7 +16,12 @@ User = get_user_model()
 class ChatSafetyTests(APITestCase):
     def setUp(self):
         self.user = User.objects.create_user(
-            username='chat-user', email='chat-user@example.com', password='password', is_verified=True
+            username='chat-user',
+            email='chat-user@example.com',
+            password='password',
+            first_name='Chat',
+            last_name='User',
+            is_verified=True,
         )
         self.other = User.objects.create_user(
             username='chat-other', email='chat-other@example.com', password='password', is_verified=True
@@ -88,6 +93,15 @@ class ChatSafetyTests(APITestCase):
         analyze.assert_not_called()
         send_push.assert_called_once()
         self.assertTrue(send_push.call_args.kwargs['display_notification'])
+        self.assertEqual(send_push.call_args.kwargs['title'], 'Chat User')
+        self.assertEqual(
+            send_push.call_args.kwargs['body'],
+            'Send this directly.',
+        )
+        self.assertNotIn(
+            self.user.username,
+            send_push.call_args.kwargs['title'],
+        )
         payload = send_push.call_args.kwargs['data']
         self.assertEqual(payload['type'], 'chat_message')
         self.assertEqual(payload['sender_username'], self.user.username)
