@@ -101,6 +101,10 @@ class PostQuerySet(models.QuerySet):
         avg_rating_sq = votes_sq.values('post').annotate(a=Avg('value')).values('a')
         vote_count_sq = votes_sq.values('post').annotate(c=Count('*')).values('c')
         favorite_count_sq = Favorite.objects.filter(post=OuterRef('pk')).values('post').annotate(c=Count('*')).values('c')
+        comments_count_sq = SubPost.objects.filter(
+            parent_post=OuterRef('pk'),
+            is_media_deleted=False,
+        ).values('parent_post').annotate(c=Count('*')).values('c')
 
         queryset = self
         if user and user.is_authenticated:
@@ -115,22 +119,18 @@ class PostQuerySet(models.QuerySet):
                 is_favorited=Value(False, output_field=models.BooleanField())
             )
 
-        from django.db.models import Prefetch
-
         return queryset.annotate(
             avg_rating=Subquery(avg_rating_sq),
             vote_count=Coalesce(Subquery(vote_count_sq), Value(0)),
-            favorite_count=Coalesce(Subquery(favorite_count_sq), Value(0))
+            favorite_count=Coalesce(Subquery(favorite_count_sq), Value(0)),
+            comments_count=Coalesce(
+                Subquery(comments_count_sq),
+                Value(0),
+                output_field=models.IntegerField(),
+            ),
         ).select_related(
-            # Eliminates per-row FK lookups for author.username
-            # and author.profile_picture in PostSerializer.
             'author',
         ).prefetch_related(
-            # Eliminates the N+1 on the nested SubPostSerializer list field.
-            # Also pre-fetches sub_post authors so SubPostSerializer's
-            # author_username / author_profile_picture fields don't hit the DB per row.
-            Prefetch('sub_posts', queryset=SubPost.objects.with_annotations(user)),
-            'sub_posts__author',
             'categories',
         )
 
@@ -223,6 +223,22 @@ class Post(models.Model):
 
     objects = PostManager()
 
+    class Meta:
+        indexes = [
+            models.Index(
+                fields=['is_media_deleted', '-created_at'],
+                name='post_feed_created_idx',
+            ),
+            models.Index(
+                fields=['status', 'is_media_deleted', '-created_at'],
+                name='post_status_created_idx',
+            ),
+            models.Index(
+                fields=['author', '-created_at'],
+                name='post_author_created_idx',
+            ),
+        ]
+
     def clean(self):
         # 1. Enforce Upload Window
         settings_obj = AppSettings.objects.first()
@@ -312,7 +328,7 @@ class SubPostQuerySet(models.QuerySet):
         return queryset.annotate(
             avg_rating=Subquery(avg_rating_sq),
             vote_count=Coalesce(Subquery(vote_count_sq), Value(0))
-        )
+        ).select_related('author')
 
 class SubPostManager(models.Manager):
     def get_queryset(self):
@@ -336,6 +352,14 @@ class SubPost(models.Model):
     is_media_deleted = models.BooleanField(default=False)
 
     objects = SubPostManager()
+
+    class Meta:
+        indexes = [
+            models.Index(
+                fields=['parent_post', 'is_media_deleted', '-created_at'],
+                name='subpost_parent_created_idx',
+            ),
+        ]
 
     def clean(self):
         # 1. Enforce Upload Window

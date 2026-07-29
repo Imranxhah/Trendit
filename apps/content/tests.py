@@ -72,6 +72,80 @@ class ContentTests(APITestCase):
         data_list = body.get('results', body) if isinstance(body, dict) else body
         self.assertEqual(len(data_list), 1)
 
+    def test_feed_returns_comment_count_without_embedded_comments(self):
+        post = Post.objects.create(
+            author=self.user,
+            caption="Post with comments",
+            status="active",
+        )
+        SubPost.objects.create(
+            parent_post=post,
+            author=self.user,
+            caption="First comment",
+        )
+        SubPost.objects.create(
+            parent_post=post,
+            author=self.user,
+            caption="Second comment",
+        )
+        SubPost.objects.create(
+            parent_post=post,
+            author=self.user,
+            caption="Expired comment",
+            is_media_deleted=True,
+        )
+
+        response = self.client.get(self.feed_url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        item = next(
+            item for item in self._response_items(response)
+            if item['id'] == post.id
+        )
+        self.assertEqual(item['comments_count'], 2)
+        self.assertNotIn('sub_posts', item)
+
+    def test_post_comments_are_loaded_from_dedicated_endpoint(self):
+        post = Post.objects.create(
+            author=self.user,
+            caption="Comment parent",
+            status="active",
+        )
+        other_post = Post.objects.create(
+            author=self.user,
+            caption="Other parent",
+            status="active",
+        )
+        first = SubPost.objects.create(
+            parent_post=post,
+            author=self.user,
+            caption="First comment",
+        )
+        second = SubPost.objects.create(
+            parent_post=post,
+            author=self.user,
+            caption="Second comment",
+        )
+        SubPost.objects.create(
+            parent_post=other_post,
+            author=self.user,
+            caption="Not part of this thread",
+        )
+        SubPost.objects.create(
+            parent_post=post,
+            author=self.user,
+            caption="Expired comment",
+            is_media_deleted=True,
+        )
+
+        response = self.client.get(reverse('post-comments', args=[post.id]))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            [item['id'] for item in self._response_items(response)],
+            [second.id, first.id],
+        )
+
     def test_close_buddy_can_delete_authors_pending_post(self):
         author = User.objects.create_user(
             username='pendingauthor',
@@ -369,7 +443,7 @@ class ContentTests(APITestCase):
         items = self._response_items(response)
         self.assertEqual([item['id'] for item in items], [member_post.id])
 
-    def test_previous_trends_returns_top_three_per_day_with_trending_algorithm(self):
+    def test_previous_trends_returns_one_daily_winner_with_trending_algorithm(self):
         target_day = timezone.localdate() - timedelta(days=1)
         day_start = timezone.make_aware(
             datetime.combine(target_day, time(hour=12)),
@@ -428,7 +502,7 @@ class ContentTests(APITestCase):
         )
         for post in expected_posts:
             post.trending_score = calculate_trending_score(post, now=day_end)
-        expected_ids = [
+        expected_id = [
             post.id for post in sorted(
                 expected_posts,
                 key=lambda post: (
@@ -438,12 +512,12 @@ class ContentTests(APITestCase):
                     post.created_at,
                 ),
                 reverse=True,
-            )[:3]
-        ]
+            )[:1]
+        ][0]
 
         self.assertEqual(
             [post['id'] for post in target_group['posts']],
-            expected_ids,
+            [expected_id],
         )
 
     @patch('cloudinary.uploader.upload')

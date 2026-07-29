@@ -57,19 +57,21 @@ class NotificationListView(generics.ListAPIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        return Notification.objects.filter(recipient=self.request.user)
+        return Notification.objects.filter(
+            recipient=self.request.user
+        ).select_related('actor', 'content_type').order_by('-created_at')
 
 class NotificationReadView(generics.UpdateAPIView):
     serializer_class = NotificationSerializer
     permission_classes = [permissions.IsAuthenticated]
-    queryset = Notification.objects.all()
+
+    def get_queryset(self):
+        return Notification.objects.filter(recipient=self.request.user)
 
     def update(self, request, *args, **kwargs):
         instance = self.get_object()
-        if instance.recipient != request.user:
-            return Response(status=status.HTTP_403_FORBIDDEN)
         instance.read_status = True
-        instance.save()
+        instance.save(update_fields=['read_status'])
         return Response({"status": "notification marked as read"})
 
 class ReportCreateView(generics.CreateAPIView):

@@ -112,7 +112,7 @@ class PostSerializer(serializers.ModelSerializer):
     favorite_count = serializers.IntegerField(read_only=True)
     is_favorited = serializers.BooleanField(read_only=True)
     trending_score = serializers.FloatField(read_only=True)
-    sub_posts = SubPostSerializer(many=True, read_only=True)
+    comments_count = serializers.IntegerField(read_only=True, default=0)
     media_file = serializers.SerializerMethodField()
 
     class Meta:
@@ -123,7 +123,7 @@ class PostSerializer(serializers.ModelSerializer):
             'media_file', 'caption', 'aspect_ratio', 
             'duration', 'size', 'status', 'created_at', 'is_media_deleted', 
             'avg_rating', 'vote_count', 'user_rating', 'favorite_count', 
-            'is_favorited', 'trending_score', 'sub_posts'
+            'is_favorited', 'trending_score', 'comments_count'
         ]
         read_only_fields = ['author', 'created_at', 'status']
 

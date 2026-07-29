@@ -271,18 +271,27 @@ class UserSearchSerializer(serializers.ModelSerializer):
         return None
 
     def get_is_following(self, obj):
+        annotated = getattr(obj, 'user_is_following', None)
+        if annotated is not None:
+            return annotated
         request = self.context.get('request')
         if request and request.user.is_authenticated:
             return Follow.objects.filter(follower=request.user, following=obj).exists()
         return False
 
     def get_is_followed_by(self, obj):
+        annotated = getattr(obj, 'user_is_followed_by', None)
+        if annotated is not None:
+            return annotated
         request = self.context.get('request')
         if request and request.user.is_authenticated:
             return Follow.objects.filter(follower=obj, following=request.user).exists()
         return False
 
     def get_is_buddy(self, obj):
+        annotated = getattr(obj, 'user_is_buddy', None)
+        if annotated is not None:
+            return annotated
         request = self.context.get('request')
         if request and request.user.is_authenticated:
             u1, u2 = sorted([request.user.id, obj.id])
@@ -290,12 +299,21 @@ class UserSearchSerializer(serializers.ModelSerializer):
         return False
 
     def get_is_close_buddy(self, obj):
+        annotated = getattr(obj, 'user_is_close_buddy', None)
+        if annotated is not None:
+            return annotated
         request = self.context.get('request')
         if request and request.user.is_authenticated:
             return CloseBuddy.objects.filter(user=request.user, buddy=obj).exists()
         return False
 
     def get_close_buddy_request_status(self, obj):
+        if hasattr(obj, 'close_buddy_sent_status'):
+            if obj.close_buddy_sent_status is not None:
+                return f"sent_{obj.close_buddy_sent_status}"
+            if obj.close_buddy_received_status is not None:
+                return f"received_{obj.close_buddy_received_status}"
+            return None
         request = self.context.get('request')
         if request and request.user.is_authenticated:
             # Check sent request

@@ -1,5 +1,6 @@
 from datetime import datetime, time as datetime_time, timedelta
 
+from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework import generics, permissions, status
 from rest_framework.pagination import CursorPagination
@@ -152,7 +153,7 @@ class PreviousTrendsView(generics.GenericAPIView):
     serializer_class = PostSerializer
     permission_classes = [permissions.AllowAny]
     days = 7
-    result_limit = 3
+    result_limit = 1
     candidate_limit = 100
 
     def get(self, request, *args, **kwargs):
@@ -196,6 +197,25 @@ class SubPostCreateView(generics.CreateAPIView):
 
     def perform_create(self, serializer):
         serializer.save(author=self.request.user)
+
+
+class PostCommentsListView(generics.ListAPIView):
+    serializer_class = SubPostSerializer
+    permission_classes = [permissions.IsAuthenticated, IsProfileComplete]
+    pagination_class = None
+
+    def get_queryset(self):
+        post_id = self.kwargs['post_id']
+        get_object_or_404(
+            Post.objects.only('id'),
+            id=post_id,
+            is_media_deleted=False,
+        )
+        return SubPost.objects.filter(
+            parent_post_id=post_id,
+            is_media_deleted=False,
+        ).with_annotations(self.request.user).order_by('-created_at')
+
 
 class SubPostDetailView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = SubPostSerializer

@@ -11,7 +11,7 @@ from rest_framework.views import APIView
 from django.shortcuts import get_object_or_404, redirect
 from django.conf import settings
 from django.db import transaction
-from django.db.models import Count, Exists, OuterRef, Q
+from django.db.models import Count, Exists, OuterRef, Q, Subquery
 from django.http import JsonResponse
 from django.utils import timezone
 from .models import (
@@ -35,6 +35,45 @@ from apps.core.models import Notification
 from django.contrib.contenttypes.models import ContentType
 
 User = get_user_model()
+
+
+def _with_user_relationships(queryset, user):
+    sent_request = CloseBuddyRequest.objects.filter(
+        sender=user,
+        receiver_id=OuterRef('pk'),
+    ).values('status')
+    received_request = CloseBuddyRequest.objects.filter(
+        sender_id=OuterRef('pk'),
+        receiver=user,
+    ).values('status')
+    buddy = Buddy.objects.filter(
+        Q(user1=user, user2_id=OuterRef('pk'))
+        | Q(user1_id=OuterRef('pk'), user2=user)
+    )
+
+    return queryset.annotate(
+        user_is_following=Exists(
+            Follow.objects.filter(
+                follower=user,
+                following_id=OuterRef('pk'),
+            )
+        ),
+        user_is_followed_by=Exists(
+            Follow.objects.filter(
+                follower_id=OuterRef('pk'),
+                following=user,
+            )
+        ),
+        user_is_buddy=Exists(buddy),
+        user_is_close_buddy=Exists(
+            CloseBuddy.objects.filter(
+                user=user,
+                buddy_id=OuterRef('pk'),
+            )
+        ),
+        close_buddy_sent_status=Subquery(sent_request[:1]),
+        close_buddy_received_status=Subquery(received_request[:1]),
+    )
 
 
 def _community_queryset_for(user):
@@ -350,7 +389,7 @@ class IncomingCloseBuddyRequestsView(generics.ListAPIView):
     def get_queryset(self):
         return CloseBuddyRequest.objects.filter(
             receiver=self.request.user, status='pending'
-        ).order_by('-created_at')
+        ).select_related('sender', 'receiver').order_by('-created_at')
 
 
 class PendingSentCloseBuddyRequestsView(generics.ListAPIView):
@@ -364,7 +403,7 @@ class PendingSentCloseBuddyRequestsView(generics.ListAPIView):
     def get_queryset(self):
         return CloseBuddyRequest.objects.filter(
             sender=self.request.user, status='pending'
-        ).order_by('-created_at')
+        ).select_related('sender', 'receiver').order_by('-created_at')
 
 
 # ─── Close Buddy ──────────────────────────────────────────────────────────────
@@ -378,7 +417,9 @@ class CloseBuddyListView(generics.ListAPIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        return CloseBuddy.objects.filter(user=self.request.user)
+        return CloseBuddy.objects.filter(
+            user=self.request.user
+        ).select_related('buddy')
 
 
 class ReverseCloseBuddyListView(generics.ListAPIView):
@@ -390,7 +431,9 @@ class ReverseCloseBuddyListView(generics.ListAPIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        return CloseBuddy.objects.filter(buddy=self.request.user)
+        return CloseBuddy.objects.filter(
+            buddy=self.request.user
+        ).select_related('user')
 
 
 class CloseBuddySuggestionsView(generics.ListAPIView):
@@ -418,13 +461,14 @@ class CloseBuddySuggestionsView(generics.ListAPIView):
         # Pending received requests
         pending_received = CloseBuddyRequest.objects.filter(receiver=user, status='pending').values_list('sender_id', flat=True)
 
-        return buddies.exclude(
+        queryset = buddies.exclude(
             id__in=already_close
         ).exclude(
             id__in=pending_sent
         ).exclude(
             id__in=pending_received
-        ).order_by('username')
+        )
+        return _with_user_relationships(queryset, user).order_by('username')
 
 
 class RemoveCloseBuddyView(APIView):
@@ -662,7 +706,7 @@ class UnapprovedBuddyPostsView(generics.ListAPIView):
             is_media_deleted=False
         ).exclude(
             id__in=already_approved_post_ids
-        ).order_by('-created_at')
+        ).with_annotations(user).order_by('-created_at')
 
 
 # ─── User Search ──────────────────────────────────────────────────────────────
@@ -679,12 +723,16 @@ class UserSearchView(generics.ListAPIView):
         query = self.request.query_params.get('q', '').strip()
         if not query:
             return User.objects.none()
-        return User.objects.filter(
+        queryset = User.objects.filter(
             Q(username__icontains=query) |
             Q(first_name__icontains=query) |
             Q(last_name__icontains=query),
             is_active=True
-        ).exclude(id=self.request.user.id).order_by('username')[:30]
+        ).exclude(id=self.request.user.id)
+        return _with_user_relationships(
+            queryset,
+            self.request.user,
+        ).order_by('username')[:30]
 
 
 # Community
@@ -956,7 +1004,7 @@ class RejectedCloseBuddyRequestsView(generics.ListAPIView):
     def get_queryset(self):
         return CloseBuddyRequest.objects.filter(
             receiver=self.request.user, status='rejected'
-        ).order_by('-created_at')
+        ).select_related('sender', 'receiver').order_by('-created_at')
 
 
 class IgnoredCloseBuddyRequestsView(generics.ListAPIView):
@@ -970,4 +1018,4 @@ class IgnoredCloseBuddyRequestsView(generics.ListAPIView):
     def get_queryset(self):
         return CloseBuddyRequest.objects.filter(
             receiver=self.request.user, status='ignored'
-        ).order_by('-created_at')
+        ).select_related('sender', 'receiver').order_by('-created_at')
