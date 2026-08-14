@@ -15,10 +15,12 @@ from django.utils import timezone
 from datetime import datetime, time, timedelta
 from django.core.management import call_command
 from unittest.mock import patch
+from django.test import override_settings
 import os
 
 User = get_user_model()
 
+@override_settings(MEDIA_MODERATION_ENABLED=False)
 class ContentTests(APITestCase):
     def setUp(self):
         self.user = User.objects.create_user(

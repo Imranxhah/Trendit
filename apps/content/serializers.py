@@ -3,8 +3,13 @@ from .models import Category, Post, SubPost
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.conf import settings
 import cloudinary
+import logging
 
 from .moderation import ModerationUnavailable, analyze_caption, record_moderation_event
+from .media_moderation import MediaModerationUnavailable, check_media_url
+
+logger = logging.getLogger(__name__)
+
 
 def _generate_media_url(media_file):
     if not media_file:
@@ -137,9 +142,50 @@ class PostSerializer(serializers.ModelSerializer):
         validated_data['author'] = self.context['request'].user
         moderation = self._moderate_caption(validated_data.get('caption', ''))
         categories = validated_data.pop('categories', [])
+
+        if len(categories) > 1:
+            categories = [categories[0]]
+
         media_file = self.initial_data.get('media_file')
         if media_file:
             validated_data['media_file'] = media_file
+
+        # ── Sightengine media moderation (images only; videos are skipped) ──
+        # We build the Cloudinary URL from the raw media_file before creating
+        # the DB record. If the image is NSFW we reject here — nothing is saved.
+        if settings.MEDIA_MODERATION_ENABLED and media_file:
+            # Determine whether this is a video by extension.
+            filename = getattr(media_file, 'name', '') or ''
+            video_exts = ('.mp4', '.mov', '.avi', '.mkv', '.webm')
+            is_video = any(filename.lower().endswith(ext) for ext in video_exts)
+
+            if not is_video:
+                # Build the provisional Cloudinary URL so Sightengine can fetch it.
+                media_url = _generate_media_url(media_file)
+                if media_url:
+                    try:
+                        media_result = check_media_url(media_url)
+                        if media_result.decision == 'block':
+                            raise serializers.ValidationError({
+                                'media_file': {
+                                    'code': 'media_blocked',
+                                    'message': (
+                                        'This media contains content that cannot be '
+                                        'published. Please upload appropriate content.'
+                                    ),
+                                    'raw_score': round(media_result.raw_score, 3),
+                                },
+                            })
+                        elif media_result.decision == 'review':
+                            # Flag the post for human review after creation.
+                            validated_data['status'] = 'pending'
+                    except MediaModerationUnavailable as exc:
+                        # Fail-safe: Sightengine is down or quota exceeded.
+                        # Allow the post through and log so ops can investigate.
+                        logger.warning(
+                            'Media moderation unavailable — post allowed through: %s', exc
+                        )
+
         try:
             post = super().create(validated_data)
             if categories:
@@ -180,4 +226,3 @@ class PostSerializer(serializers.ModelSerializer):
             record_moderation_event(self.context['request'].user, result)
             raise serializers.ValidationError({'caption': {'code': 'caption_blocked', 'message': 'This caption contains content that cannot be published.', 'reasons': result.reasons}})
         return result
-

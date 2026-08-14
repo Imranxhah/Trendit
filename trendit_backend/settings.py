@@ -22,6 +22,18 @@ CAPTION_MODERATION_ASSET_DIR = (
 )
 CAPTION_EXPORT_PSEUDONYM_KEY = config('CAPTION_EXPORT_PSEUDONYM_KEY', default='')
 
+# ─── Sightengine Media Moderation ────────────────────────────────────────────
+# Set MEDIA_MODERATION_ENABLED=False to skip Sightengine checks (e.g. in CI).
+# Sign up at https://sightengine.com to get your api_user and api_secret.
+MEDIA_MODERATION_ENABLED    = config('MEDIA_MODERATION_ENABLED', default=True, cast=bool)
+SIGHTENGINE_API_USER        = config('SIGHTENGINE_API_USER', default='')
+SIGHTENGINE_API_SECRET      = config('SIGHTENGINE_API_SECRET', default='')
+# raw nudity score (0–1) above which the upload is blocked entirely.
+SIGHTENGINE_BLOCK_THRESHOLD  = config('SIGHTENGINE_BLOCK_THRESHOLD', default=0.6, cast=float)
+# raw nudity score above which the post is flagged for human review.
+SIGHTENGINE_REVIEW_THRESHOLD = config('SIGHTENGINE_REVIEW_THRESHOLD', default=0.3, cast=float)
+
+
 
 # ─── Security ────────────────────────────────────────────────────────────────
 SECRET_KEY = config('SECRET_KEY', default='django-insecure-change-me-in-production')
