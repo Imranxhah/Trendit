@@ -44,6 +44,38 @@ def _generate_media_url(media_file):
         return getattr(media_file, 'public_id', str(media_file))
 
 
+def _generate_video_frame_urls(media_file, start_offsets=('10p', '50p', '90p')):
+    if not media_file:
+        return []
+    try:
+        public_id = getattr(media_file, 'public_id', None)
+        if not public_id:
+            val = str(media_file)
+            if val:
+                public_id = val
+            else:
+                return []
+
+        video_exts = ('.mp4', '.mov', '.avi', '.mkv', '.webm')
+        base_public_id = public_id
+        for ext in video_exts:
+            if base_public_id.lower().endswith(ext):
+                base_public_id = base_public_id[:-len(ext)]
+                break
+        
+        urls = []
+        for offset in start_offsets:
+            url = cloudinary.CloudinaryVideo(base_public_id).build_url(
+                secure=True,
+                format='jpg',
+                start_offset=offset
+            )
+            urls.append(url)
+        return urls
+    except Exception:
+        return []
+
+
 class CategorySerializer(serializers.ModelSerializer):
     priority_multiplier = serializers.FloatField(read_only=True)
 
@@ -150,41 +182,54 @@ class PostSerializer(serializers.ModelSerializer):
         if media_file:
             validated_data['media_file'] = media_file
 
-        # ── Sightengine media moderation (images only; videos are skipped) ──
-        # We build the Cloudinary URL from the raw media_file before creating
-        # the DB record. If the image is NSFW we reject here — nothing is saved.
+        # ── Sightengine media moderation (images & videos) ──
+        # We build Cloudinary URL(s) from the raw media_file before creating
+        # the DB record. If the media is NSFW we reject here — nothing is saved.
         if settings.MEDIA_MODERATION_ENABLED and media_file:
             # Determine whether this is a video by extension.
             filename = getattr(media_file, 'name', '') or ''
             video_exts = ('.mp4', '.mov', '.avi', '.mkv', '.webm')
             is_video = any(filename.lower().endswith(ext) for ext in video_exts)
 
-            if not is_video:
-                # Build the provisional Cloudinary URL so Sightengine can fetch it.
-                media_url = _generate_media_url(media_file)
-                if media_url:
-                    try:
-                        media_result = check_media_url(media_url)
-                        if media_result.decision == 'block':
-                            raise serializers.ValidationError({
-                                'media_file': {
-                                    'code': 'media_blocked',
-                                    'message': (
-                                        'This media contains content that cannot be '
-                                        'published. Please upload appropriate content.'
-                                    ),
-                                    'raw_score': round(media_result.raw_score, 3),
-                                },
-                            })
-                        elif media_result.decision == 'review':
-                            # Flag the post for human review after creation.
-                            validated_data['status'] = 'pending'
-                    except MediaModerationUnavailable as exc:
-                        # Fail-safe: Sightengine is down or quota exceeded.
-                        # Allow the post through and log so ops can investigate.
-                        logger.warning(
-                            'Media moderation unavailable — post allowed through: %s', exc
-                        )
+            urls_to_check = []
+            if is_video:
+                urls_to_check = _generate_video_frame_urls(media_file, ['10p', '50p', '90p'])
+            else:
+                url = _generate_media_url(media_file)
+                if url:
+                    urls_to_check = [url]
+
+            blocked = False
+            highest_raw_score = 0.0
+            needs_review = False
+
+            for url in urls_to_check:
+                try:
+                    media_result = check_media_url(url)
+                    highest_raw_score = max(highest_raw_score, media_result.raw_score)
+                    if media_result.decision == 'block':
+                        blocked = True
+                        break  # Stop checking if one frame is blocked
+                    elif media_result.decision == 'review':
+                        needs_review = True
+                except MediaModerationUnavailable as exc:
+                    # Fail-safe: Sightengine is down or quota exceeded.
+                    logger.warning('Media moderation unavailable — post allowed through: %s', exc)
+            
+            if blocked:
+                raise serializers.ValidationError({
+                    'media_file': {
+                        'code': 'media_blocked',
+                        'message': (
+                            'This media contains content that cannot be '
+                            'published. Please upload appropriate content.'
+                        ),
+                        'raw_score': round(highest_raw_score, 3),
+                    },
+                })
+            elif needs_review:
+                # Flag the post for human review after creation.
+                validated_data['status'] = 'pending'
 
         try:
             post = super().create(validated_data)
