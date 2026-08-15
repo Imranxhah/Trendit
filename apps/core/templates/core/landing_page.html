@@ -15,7 +15,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&amp;family=Space+Grotesk:wght@500;600;700&amp;display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="{% static 'core/css/landing.css' %}">
+  <link rel="stylesheet" href="{% static 'core/css/landing.css' %}?v=20260815-4">
   <script defer src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.min.js"></script>
   <script defer src="{% static 'core/js/landing.js' %}"></script>
 </head>
@@ -45,56 +45,59 @@
 
   <main id="top">
     <section class="hero" aria-labelledby="hero-title">
-      <canvas class="hero-canvas" data-trend-field aria-hidden="true"></canvas>
+      <div class="hero-glow hero-glow-orange" aria-hidden="true"></div>
+      <div class="hero-glow hero-glow-cyan" aria-hidden="true"></div>
 
-      <div class="hero-signal-key" aria-hidden="true">
-        <div class="hero-signal-heading">
-          <span>Live trend signal</span>
-          <i></i>
+      <div class="hero-layout">
+        <div class="hero-copy reveal is-visible">
+          <p class="hero-kicker"><span></span> The social feed, shaped by people</p>
+          <h1 id="hero-title">See what&rsquo;s rising.<br><span>Shape what&rsquo;s next.</span></h1>
+          <p class="hero-detail">Trendit puts discovery back in the community&rsquo;s hands. Rate real posts, follow what matters and find your people before the moment passes.</p>
+          <div class="hero-actions">
+            <a class="button button-primary" href="{{ apk_download_url }}" data-download-link>
+              <i data-lucide="download" aria-hidden="true"></i>
+              <span>Download for Android</span>
+            </a>
+            <a class="button button-secondary" href="#explore">
+              <i data-lucide="play" aria-hidden="true"></i>
+              <span>See the app</span>
+            </a>
+          </div>
+          <div class="download-proof" aria-live="polite" aria-atomic="true">
+            <span class="download-proof-icon"><i data-lucide="download-cloud" aria-hidden="true"></i></span>
+            <span class="download-proof-copy">
+              <strong data-download-count>{{ download_count_display }}</strong>
+              <span>total downloads and growing</span>
+            </span>
+          </div>
+          <div class="hero-meta" aria-label="App information">
+            <span><i data-lucide="users" aria-hidden="true"></i> Community ranked</span>
+            <span><i data-lucide="clock-3" aria-hidden="true"></i> Fresh for 7 days</span>
+            <span><i data-lucide="sun-moon" aria-hidden="true"></i> Light + dark</span>
+          </div>
         </div>
-        <div class="hero-signal-row">
-          <span>01</span>
-          <strong>Discover</strong>
-          <em>Community-ranked posts</em>
-        </div>
-        <div class="hero-signal-row">
-          <span>02</span>
-          <strong>Rate</strong>
-          <em>People shape the ranking</em>
-        </div>
-        <div class="hero-signal-row">
-          <span>03</span>
-          <strong>Connect</strong>
-          <em>Communities and buddies</em>
-        </div>
-      </div>
 
-      <div class="hero-copy reveal is-visible">
-        <p class="hero-kicker"><span></span> Community-powered discovery</p>
-        <h1 id="hero-title">Trendit<span>.</span></h1>
-        <div class="hero-message">
-          <p class="hero-lead">See what is rising.<br>Shape what trends next.</p>
-          <p class="hero-detail">Discover real posts, rate what matters, create with smart tools and find communities built around people and place.</p>
-        </div>
-        <div class="hero-actions">
-          <a class="button button-primary" href="{{ apk_download_url }}" data-download-link>
-            <i data-lucide="download" aria-hidden="true"></i>
-            <span>Download for Android</span>
-          </a>
-          <a class="button button-secondary" href="#explore">
-            <i data-lucide="arrow-down" aria-hidden="true"></i>
-            <span>Explore Trendit</span>
-          </a>
-        </div>
-        <div class="download-proof" aria-live="polite" aria-atomic="true">
-          <i data-lucide="download-cloud" aria-hidden="true"></i>
-          <strong data-download-count>{{ download_count_display }}</strong>
-          <span>total downloads</span>
-        </div>
-        <div class="hero-meta" aria-label="App information">
-          <span>Android APK</span>
-          <span>Version {{ app_version }}</span>
-          <span>Light + dark mode</span>
+        <div class="hero-visual reveal is-visible" aria-label="Preview of the Trendit trending feed">
+          <div class="hero-visual-grid" aria-hidden="true"></div>
+          <figure class="hero-product-card">
+            <figcaption>
+              <span><i></i> Live product preview</span>
+              <span>Trending feed</span>
+            </figcaption>
+            <img
+              src="{% static 'core/images/landing/trending.webp' %}"
+              alt="Trendit trending feed showing community-ranked posts, content filters and creator profiles"
+              width="1448"
+              height="1086">
+          </figure>
+          <div class="hero-float-card hero-float-ranking" aria-hidden="true">
+            <span class="hero-float-icon"><i data-lucide="flame"></i></span>
+            <span><strong>Community ranked</strong><small>People decide what rises</small></span>
+          </div>
+          <div class="hero-float-card hero-float-fresh" aria-hidden="true">
+            <span class="hero-float-icon"><i data-lucide="sparkles"></i></span>
+            <span><strong>Fresh by design</strong><small>Top trends live for 7 days</small></span>
+          </div>
         </div>
       </div>
 
