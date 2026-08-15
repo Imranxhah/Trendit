@@ -216,9 +216,9 @@ STATIC_ROOT = BASE_DIR / 'staticfiles'
 
 TRENDIT_APK_DOWNLOAD_URL = config(
     'TRENDIT_APK_DOWNLOAD_URL',
-    default='https://github.com/Imranxhah/Trendit/releases/latest/download/trendit.apk',
+    default='https://github.com/Imranxhah/Trendit/releases/download/v1.0.1/trendit.apk',
 )
-TRENDIT_APP_VERSION = config('TRENDIT_APP_VERSION', default='1.0.0')
+TRENDIT_APP_VERSION = config('TRENDIT_APP_VERSION', default='1.0.1')
 
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
