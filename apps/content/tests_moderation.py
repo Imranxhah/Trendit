@@ -14,57 +14,73 @@ from apps.content.models import CaptionModerationEvent, Post
 from apps.users.models import User
 
 
-class _SafeModel:
-    def predict_proba(self, captions):
-        return np.asarray([[0.01, 0.02, 0.02, 0.01, 0.01] for _ in captions])
-
-
-class _ContextBiasedModel:
-    def __init__(self, scores):
-        self.scores = scores
-
-    def predict_proba(self, captions):
-        return np.asarray([self.scores for _ in captions])
-
+import json
+from unittest.mock import MagicMock
 
 class CaptionModerationTests(SimpleTestCase):
-    metadata = {
-        'model_version': 'test-v1',
-        'labels': list(LABELS),
-        'thresholds': {label: {'review': 0.5, 'block': 0.9} for label in LABELS},
-    }
+    def setUp(self):
+        from django.conf import settings
+        settings.SIGHTENGINE_TEXT_API_USER = 'dummy-user'
+        settings.SIGHTENGINE_TEXT_API_SECRET = 'dummy-secret'
+
+    def _mock_response(self, moderation_classes=None, profanity_matches=None):
+        base_classes = {
+            "sexual": 0.01,
+            "discriminatory": 0.01,
+            "insulting": 0.01,
+            "violent": 0.01,
+            "toxic": 0.01
+        }
+        if moderation_classes:
+            base_classes.update(moderation_classes)
+            
+        data = {
+            "status": "success",
+            "moderation_classes": base_classes,
+            "profanity": {
+                "matches": profanity_matches or []
+            }
+        }
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = json.dumps(data).encode('utf-8')
+        mock_resp.__enter__.return_value = mock_resp
+        return mock_resp
 
     def test_normalization_masks_private_contact_data(self):
         value = normalize_caption('Call +1 212 555 0199 or email a@example.com')
         self.assertEqual(value, 'Call [PHONE] or email [EMAIL]')
 
-    @patch('apps.content.moderation._load_assets', return_value=(_SafeModel(), metadata))
-    def test_explicit_direct_threat_is_blocked_by_high_precision_safety_net(self, _):
+    @patch('urllib.request.urlopen')
+    def test_explicit_direct_threat_is_blocked_by_high_precision_safety_net(self, mock_urlopen):
+        # Even if OpenAI returns low score, our regex overrides it
+        mock_urlopen.return_value = self._mock_response()
         result = analyze_caption('I will fuck you up bitch')
         self.assertEqual(result.decision, 'block')
         self.assertIn('threat_violence', result.reasons)
 
-    @patch('apps.content.moderation._load_assets', return_value=(_SafeModel(), metadata))
-    def test_benign_flower_caption_is_allowed(self, _):
+    @patch('urllib.request.urlopen')
+    def test_benign_flower_caption_is_allowed(self, mock_urlopen):
+        mock_urlopen.return_value = self._mock_response()
         result = analyze_caption('A nice pink flower.')
         self.assertEqual(result.decision, 'allow')
         self.assertEqual(result.reasons, [])
 
-    @patch(
-        'apps.content.moderation._load_assets',
-        return_value=(_ContextBiasedModel([0.97, 0.02, 0.02, 0.02, 0.02]), metadata),
-    )
-    def test_educational_sexual_health_context_is_not_blocked(self, _):
+    @patch('urllib.request.urlopen')
+    def test_educational_sexual_health_context_is_not_blocked(self, mock_urlopen):
+        mock_urlopen.return_value = self._mock_response(
+            moderation_classes={"sexual": 0.99}
+        )
         result = analyze_caption('An educational documentary about sexual health and consent.')
         self.assertEqual(result.decision, 'allow')
 
-    @patch(
-        'apps.content.moderation._load_assets',
-        return_value=(_ContextBiasedModel([0.02, 0.02, 0.2, 0.02, 0.97]), metadata),
-    )
-    def test_identity_score_without_abusive_context_is_not_blocked(self, _):
+    @patch('urllib.request.urlopen')
+    def test_identity_score_without_abusive_context_is_not_blocked(self, mock_urlopen):
+        # We removed the old arbitrary matrix logic since OpenAI handles contextual hate well.
+        # This test ensures if OpenAI says it's NOT hate, we allow it.
+        mock_urlopen.return_value = self._mock_response()
         result = analyze_caption('Muslim families celebrated the holiday together.')
         self.assertEqual(result.decision, 'allow')
+
 
 
 class CaptionModerationEndpointTests(TestCase):

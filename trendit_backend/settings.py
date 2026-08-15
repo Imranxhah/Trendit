@@ -11,16 +11,9 @@ from decouple import config, Csv
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 CAPTION_MODERATION_ENABLED = config('CAPTION_MODERATION_ENABLED', default=True, cast=bool)
-_caption_moderation_asset_dir = Path(config(
-    'CAPTION_MODERATION_ASSET_DIR',
-    default=str(BASE_DIR / 'apps' / 'content' / 'moderation_assets'),
-))
-CAPTION_MODERATION_ASSET_DIR = (
-    _caption_moderation_asset_dir
-    if _caption_moderation_asset_dir.is_absolute()
-    else BASE_DIR / _caption_moderation_asset_dir
-)
 CAPTION_EXPORT_PSEUDONYM_KEY = config('CAPTION_EXPORT_PSEUDONYM_KEY', default='')
+SIGHTENGINE_TEXT_API_USER = config('SIGHTENGINE_TEXT_API_USER', default='')
+SIGHTENGINE_TEXT_API_SECRET = config('SIGHTENGINE_TEXT_API_SECRET', default='')
 
 # ─── Sightengine Media Moderation ────────────────────────────────────────────
 # Set MEDIA_MODERATION_ENABLED=False to skip Sightengine checks (e.g. in CI).

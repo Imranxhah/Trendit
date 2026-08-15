@@ -5,9 +5,6 @@ import json
 import re
 import unicodedata
 from dataclasses import dataclass
-from functools import lru_cache
-
-import joblib
 from django.conf import settings
 
 
@@ -55,59 +52,95 @@ def normalize_caption(caption):
     return SPACE_RE.sub(' ', value).strip()
 
 
-@lru_cache(maxsize=1)
-def _load_assets():
-    asset_dir = settings.CAPTION_MODERATION_ASSET_DIR
-    metadata_path = asset_dir / 'caption_moderation_v1.json'
-    model_path = asset_dir / 'caption_moderation_v1.joblib'
-    if not metadata_path.exists() or not model_path.exists():
-        raise ModerationUnavailable('Caption moderation assets are not installed on the server.')
-    metadata = json.loads(metadata_path.read_text(encoding='utf-8'))
-    if metadata.get('labels') != list(LABELS):
-        raise ModerationUnavailable('Caption moderation labels do not match the server policy.')
-    return joblib.load(model_path), metadata
-
-
 def analyze_caption(caption):
     normalized = normalize_caption(caption)
     fingerprint = hashlib.sha256(normalized.casefold().encode('utf-8')).hexdigest()
     if not normalized:
-        return CaptionModerationDecision('allow', {label: 0.0 for label in LABELS}, [], 'empty-v1', fingerprint)
-    model, metadata = _load_assets()
-    probabilities = model.predict_proba([normalized])[0]
-    scores = {label: round(float(probabilities[index]), 6) for index, label in enumerate(LABELS)}
-    thresholds = metadata['thresholds']
-    reasons = [label for label in LABELS if scores[label] >= thresholds[label]['review']]
-    has_identity_context = (
-        scores['harassment_insult'] >= thresholds['harassment_insult']['review']
-        or scores['threat_violence'] >= thresholds['threat_violence']['review']
-        or scores['profanity_obscene'] >= thresholds['profanity_obscene']['review']
-    )
+        return CaptionModerationDecision('allow', {label: 0.0 for label in LABELS}, [], 'empty-v3', fingerprint)
+    
+    api_user = getattr(settings, 'SIGHTENGINE_TEXT_API_USER', '')
+    api_secret = getattr(settings, 'SIGHTENGINE_TEXT_API_SECRET', '')
+    
+    if not api_user or not api_secret:
+        raise ModerationUnavailable('Sightengine Text API credentials are missing.')
+    
+    import urllib.parse
+    
+    params = urllib.parse.urlencode({
+        'text': normalized,
+        'lang': 'en',
+        'mode': 'standard,ml',
+        'api_user': api_user,
+        'api_secret': api_secret
+    })
+    url = f"https://api.sightengine.com/1.0/text/check.json?{params}"
+    req = urllib.request.Request(url)
+    
+    try:
+        with urllib.request.urlopen(req) as response:
+            result = json.loads(response.read().decode('utf-8'))
+            if result.get('status') != 'success':
+                raise ModerationUnavailable(f"Sightengine API error: {result.get('error', {}).get('message', 'Unknown error')}")
+    except urllib.error.URLError as e:
+        raise ModerationUnavailable(f"Sightengine request error: {e}")
+
+    mod_classes = result.get('moderation_classes', {})
+    
+    scores = {label: 0.0 for label in LABELS}
+    scores['sexual_explicit'] = mod_classes.get('sexual', 0.0)
+    scores['harassment_insult'] = mod_classes.get('insulting', 0.0)
+    scores['threat_violence'] = mod_classes.get('violent', 0.0)
+    scores['hate_identity_attack'] = mod_classes.get('discriminatory', 0.0)
+    
+    profanity_matches = result.get('profanity', {}).get('matches', [])
+    has_profanity = len(profanity_matches) > 0
+    
+    scores['profanity_obscene'] = max(mod_classes.get('toxic', 0.0), 0.9 if has_profanity else 0.0)
+
+    reasons = []
+    blocking = []
+
+    # Use threshold logic (since Sightengine gives probabilities 0-1)
+    if scores['sexual_explicit'] >= 0.9:
+        reasons.append('sexual_explicit')
+        blocking.append('sexual_explicit')
+    elif scores['sexual_explicit'] >= 0.5:
+        reasons.append('sexual_explicit')
+        
+    if scores['harassment_insult'] >= 0.9:
+        reasons.append('harassment_insult')
+        blocking.append('harassment_insult')
+    elif scores['harassment_insult'] >= 0.5:
+        reasons.append('harassment_insult')
+        
+    if scores['threat_violence'] >= 0.8:
+        reasons.append('threat_violence')
+        blocking.append('threat_violence')
+    elif scores['threat_violence'] >= 0.5:
+        reasons.append('threat_violence')
+        
+    if scores['hate_identity_attack'] >= 0.8:
+        reasons.append('hate_identity_attack')
+        blocking.append('hate_identity_attack')
+    elif scores['hate_identity_attack'] >= 0.5:
+        reasons.append('hate_identity_attack')
+        
+    if scores['profanity_obscene'] >= 0.9:
+        reasons.append('profanity_obscene')
+        # Obscene/profanity usually doesn't block entirely unless combined with others, but let's just warn/review
+
     has_benign_sexual_context = bool(BENIGN_SEXUAL_CONTEXT_RE.search(normalized))
-    if not has_identity_context and 'hate_identity_attack' in reasons:
-        reasons.remove('hate_identity_attack')
     if has_benign_sexual_context and 'sexual_explicit' in reasons:
         reasons.remove('sexual_explicit')
-
-    blocking = []
-    if scores['threat_violence'] >= thresholds['threat_violence']['block']:
-        blocking.append('threat_violence')
-    if (
-        scores['hate_identity_attack'] >= thresholds['hate_identity_attack']['block']
-        and has_identity_context
-    ):
-        blocking.append('hate_identity_attack')
-    if (
-        scores['sexual_explicit'] >= thresholds['sexual_explicit']['block']
-        and not has_benign_sexual_context
-    ):
-        blocking.append('sexual_explicit')
+        if 'sexual_explicit' in blocking:
+            blocking.remove('sexual_explicit')
 
     if EXPLICIT_THREAT_RE.search(normalized):
         scores['threat_violence'] = max(scores['threat_violence'], 0.999)
         if 'threat_violence' not in reasons:
             reasons.append('threat_violence')
-        blocking.append('threat_violence')
+        if 'threat_violence' not in blocking:
+            blocking.append('threat_violence')
 
     if blocking:
         decision = 'block'
@@ -117,11 +150,12 @@ def analyze_caption(caption):
         decision = 'warn'
     else:
         decision = 'allow'
+        
     return CaptionModerationDecision(
         decision,
         scores,
         sorted(set(reasons)),
-        metadata['model_version'],
+        'sightengine-v1',
         fingerprint,
     )
 
